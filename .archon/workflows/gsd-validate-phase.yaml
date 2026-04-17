@@ -125,7 +125,7 @@ nodes:
   - id: write
     model: sonnet
     depends_on: [map, fill]
-    trigger_rule: any_success
+    trigger_rule: one_success
     prompt: |
       # GSD Validate — Write VALIDATION.md
 

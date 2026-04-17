@@ -109,6 +109,8 @@ Per-node `model:` settings implement GSD-2's "heavy-judgment nodes get Opus, bul
 
 Advanced overrides available on every node: `effort: high|max`, `thinking: {type: enabled, budgetTokens: N}`, `fallbackModel: claude-haiku`, `maxBudgetUsd: 2.50`, `sandbox: {enabled: true}`, `allowed_tools: [...]`, `skills: [...]`. See [Archon reference](https://archon.diy/guides/authoring-workflows/).
 
+> **Known Archon constraint (as of v0.3.6):** per-node `model:` and `fallbackModel:` fields are honored on DAG nodes (`prompt:`, `bash:`, `approval:`) but **silently ignored on loop nodes**. Loop iterations run with the workflow-level default model. The bundle sets `provider: claude` at the workflow level; if you want a specific model for loop iterations (e.g., Sonnet with Opus fallback for `gsd-execute`'s Ralph loop), add `model:` at the workflow top level instead of per-node. Archon logs `loop_node_ai_fields_ignored` warnings on discovery when the per-node fields are dropped — benign, but a signal that routing isn't happening where you expect.
+
 ---
 
 ## Directory layout the workflows assume

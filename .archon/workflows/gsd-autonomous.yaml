@@ -124,7 +124,7 @@ nodes:
   - id: plan-commit
     model: sonnet
     depends_on: [check, revise]
-    trigger_rule: any_success
+    trigger_rule: one_success
     context: fresh
     bash: |
       set -e
