@@ -1,0 +1,214 @@
+name: gsd-extract-learnings
+description: |
+  Use when: A phase or milestone has completed — distill decisions, lessons, patterns,
+  and surprises into a reusable learnings document. Maps to GSD's
+  /gsd-extract-learnings.
+  Triggers: "extract learnings phase 02", "lessons from NN", "retrospective phase".
+  NOT for: Writing verification (use gsd-verify).
+
+  Autonomous retrospective:
+  1. LOAD    — read all artifacts (PLAN, DECISIONS, PROGRESS, VERIFICATION, diff)
+  2. MINE    — identify pattern shifts, unexpected findings, validation surprises
+  3. WRITE   — LEARNINGS.md with structured decisions/lessons/patterns/surprises
+
+  Input: Phase number (e.g., "02") or "milestone v2.0" for milestone-level retro.
+
+provider: claude
+
+nodes:
+  - id: scope
+    bash: |
+      set -e
+      ARG="${ARGUMENTS}"
+
+      if [[ "$ARG" =~ ^v[0-9]+ ]]; then
+        # Milestone-level retro
+        echo "MODE=milestone"
+        echo "VERSION=$ARG"
+        echo "TARGET=.planning/milestones/${ARG}-*"
+      else
+        # Phase-level retro
+        PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARG}-*/ 2>/dev/null | head -1)
+        if [ -z "$PHASE_DIR" ]; then
+          echo "ERROR: phase $ARG not found"
+          exit 1
+        fi
+        echo "MODE=phase"
+        echo "PHASE_NUMBER=$ARG"
+        echo "PHASE_DIR=$PHASE_DIR"
+      fi
+
+  - id: load
+    depends_on: [scope]
+    bash: |
+      set +e
+      SCOPE_OUTPUT='$scope.output'
+      MODE=$(echo "$SCOPE_OUTPUT" | grep '^MODE=' | cut -d= -f2)
+
+      if [ "$MODE" = "phase" ]; then
+        PHASE_DIR=$(echo "$SCOPE_OUTPUT" | grep '^PHASE_DIR=' | cut -d= -f2)
+        PHASE_NUM=$(echo "$SCOPE_OUTPUT" | grep '^PHASE_NUMBER=' | cut -d= -f2)
+
+        for f in PLAN DECISIONS VERIFICATION CONTEXT; do
+          FILE="${PHASE_DIR}${PHASE_NUM}-${f}.md"
+          if [ -f "$FILE" ]; then
+            echo "=== $f ==="
+            cat "$FILE"
+          fi
+        done
+
+        echo "=== PROGRESS ==="
+        cat "${PHASE_DIR}progress.txt" 2>/dev/null
+
+        PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "${PHASE_DIR}${PHASE_NUM}-PLAN.md" | tail -1)
+        echo "=== DIFF_STAT ==="
+        git diff --stat "${PLAN_COMMIT}..HEAD"
+        echo "=== COMMITS ==="
+        git log --oneline "${PLAN_COMMIT}..HEAD"
+      else
+        VERSION=$(echo "$SCOPE_OUTPUT" | grep '^VERSION=' | cut -d= -f2)
+        echo "=== ROADMAP ==="
+        cat .planning/milestones/${VERSION}-ROADMAP.md 2>/dev/null
+        echo "=== SUMMARY ==="
+        cat .planning/milestones/${VERSION}-SUMMARY.md 2>/dev/null || cat .planning/milestones/archive/${VERSION}/${VERSION}-SUMMARY.md 2>/dev/null
+        echo "=== AUDIT ==="
+        cat .planning/milestones/${VERSION}-MILESTONE-AUDIT.md 2>/dev/null || cat .planning/milestones/archive/${VERSION}/${VERSION}-MILESTONE-AUDIT.md 2>/dev/null
+      fi
+
+  - id: mine
+    model: sonnet
+    depends_on: [load]
+    context: fresh
+    prompt: |
+      # GSD Extract Learnings — Mine
+
+      **Scope**: $scope.output
+      **Load**: $load.output
+
+      ---
+
+      Extract four categories, each with evidence citations:
+
+      ## 1. Decisions
+
+      Non-obvious calls the team made. For each:
+      - What was decided
+      - What alternatives were on the table
+      - Why this one was picked
+      - What it cost / what it paid for
+
+      Source: DECISIONS.md content + verification outcomes.
+
+      ## 2. Lessons (what surprised us)
+
+      Things that went differently than planned:
+      - Task FAILED in progress.txt — why?
+      - Scope creep (files changed but not in plan)?
+      - Plan-vs-reality deviation flagged in VERIFICATION.md?
+      - Assumptions invalidated mid-execution?
+
+      For each: one-line observation + the specific evidence (commit, file, log).
+
+      ## 3. Patterns worth reusing
+
+      Code/structure patterns that worked well and should be extracted for future phases:
+      - New test patterns introduced
+      - Convention shifts that paid off
+      - Abstraction decisions that generalize
+
+      Cite file:line.
+
+      ## 4. Anti-patterns to avoid
+
+      Specific things that caused pain:
+      - Approaches tried first and reverted
+      - Debugging dead-ends (from commit messages or FAILED entries)
+      - False starts preserved in git history
+
+      Output as JSON-like structured text for the next node:
+
+      ```
+      DECISIONS:
+      - {decision}: {rationale and cost}
+
+      LESSONS:
+      - {surprise}: {evidence}
+
+      PATTERNS:
+      - {pattern at file:line}: {why reusable}
+
+      ANTI_PATTERNS:
+      - {anti-pattern}: {why to avoid, citation}
+      ```
+
+  - id: write
+    model: sonnet
+    depends_on: [mine, scope]
+    prompt: |
+      # GSD Extract Learnings — Write
+
+      **Scope**: $scope.output
+      **Mined**: $mine.output
+
+      ## Step 1: Pick location
+
+      - Phase mode: `.planning/milestones/{version}-phases/{NN}-*/{NN}-LEARNINGS.md`
+      - Milestone mode: `.planning/milestones/{version}-LEARNINGS.md` (or
+        `.planning/milestones/archive/{version}/{version}-LEARNINGS.md` if archived)
+
+      ## Step 2: Write
+
+      ```markdown
+      # Learnings — {phase or milestone}
+
+      **Extracted**: {ISO date}
+      **Scope**: {phase NN} | {milestone version}
+
+      ## Decisions
+
+      ### {Decision 1}
+      **Alternatives**: {list}
+      **Chose**: {...}
+      **Why**: {...}
+      **Cost**: {what this rules out, future tech debt, or nothing}
+
+      ### ...
+
+      ## Lessons
+
+      - **{Surprise}**: {evidence — commit SHA or file:line}
+      - **{Surprise}**: ...
+
+      ## Patterns Worth Reusing
+
+      - `{file:line}` — {pattern name + why}
+      - ...
+
+      ## Anti-patterns to Avoid
+
+      - {anti-pattern}: {why, citation}
+
+      ## Feeds Forward To
+
+      - Next phase should: {specific recommendation}
+      - Future milestone should: {specific recommendation}
+      ```
+
+      ## Step 3: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: learnings from {scope}"
+      ```
+
+      ## Step 4: Output
+
+      ```
+      ## Learnings Extracted
+
+      **File**: {path}
+      **Decisions**: {count}
+      **Lessons**: {count}
+      **Patterns**: {count}
+      **Anti-patterns**: {count}
+      ```

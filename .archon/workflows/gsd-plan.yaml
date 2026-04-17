@@ -1,0 +1,482 @@
+name: gsd-plan
+description: |
+  Use when: Decisions are locked for a phase — produce an executable PLAN.md with
+  goal-backward verification. Maps to GSD-2's /gsd2-plan + GSD-1's /gsd-plan-phase.
+  Triggers: "plan phase 01", "gsd plan NN".
+  NOT for: Discussing decisions (use gsd-discuss first).
+  NOT for: Executing the plan (use gsd-execute after).
+
+  Autonomous planning — Window 2 work:
+  1. PATTERNS  — map new files to closest existing analogs in the codebase
+  2. DRAFT     — write PLAN.md from CONTEXT + DECISIONS + PATTERNS
+  3. CHECK     — goal-backward verification: does the plan actually achieve the goal?
+  4. REVISE    — fix issues the checker found (loop, autonomous)
+  5. COMMIT    — write .planning/milestones/{version}-phases/{NN}-*/{NN}-PLAN.md
+
+  Input: Phase number. Reads CONTEXT.md, DECISIONS.md, RESEARCH.md from .planning/.
+
+provider: claude
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: PATTERNS — Map new files to existing analogs
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: patterns
+    model: sonnet
+    prompt: |
+      # GSD Plan — Pattern Mapping
+
+      Before writing the plan, identify existing-code analogs for every new file the
+      plan will create. This prevents reinventing patterns that already exist.
+
+      **Phase**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Load phase context
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+      ```
+
+      Extract from CONTEXT.md the "Key files that will change" table. For every CREATE
+      row, you need to find an analog. For every UPDATE row, you need to read the file.
+
+      ## Step 2: Read convention files
+
+      ```bash
+      cat CLAUDE.md
+      cat .planning/codebase/CONVENTIONS.md 2>/dev/null
+      cat .planning/codebase/ARCHITECTURE.md 2>/dev/null
+      ```
+
+      ## Step 3: For each CREATE file, find the closest analog
+
+      Use Grep/Glob. Examples:
+      - New API route → find the most similar existing route
+      - New DB migration → find the most similar recent migration
+      - New React component → find a similar pattern component
+      - New test file → find the test file most similar in scope
+
+      Read the analog file in full. Note:
+      - Imports pattern
+      - File structure (what comes in what order)
+      - Naming conventions
+      - Error-handling patterns
+      - Test-structure patterns
+
+      ## Step 4: Write patterns map
+
+      ```bash
+      mkdir -p $ARTIFACTS_DIR
+      ```
+
+      Write `$ARTIFACTS_DIR/patterns.md`:
+
+      ```markdown
+      # Pattern Mapping — Phase {NN}
+
+      ## New Files → Analogs
+
+      | New file (planned) | Analog | Why this analog |
+      |--------------------|--------|-----------------|
+      | `{new path}` | `{existing file:line}` | {one-line reason} |
+
+      ## Files to UPDATE — Current State
+
+      ### `{path}` ({N} lines, last changed {commit})
+      **Current structure**:
+      - {section 1}
+      - {section 2}
+
+      **Extension point for this phase**: {specific function / section}
+
+      ## Conventions to honor
+
+      - {convention from CLAUDE.md that applies}
+      - {pattern observed in analogs}
+
+      ## Anti-patterns to avoid
+
+      - {specific anti-pattern noticed in neighbor files}
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: DRAFT — Write the plan
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: draft
+    model: opus
+    depends_on: [patterns]
+    prompt: |
+      # GSD Plan — Draft PLAN.md
+
+      Write an executable plan with tasks that a fresh agent can implement without
+      further context.
+
+      **Phase**: $ARGUMENTS
+      **Pattern map**: $patterns.output
+
+      ---
+
+      ## Step 1: Load everything
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-RESEARCH.md"
+      cat $ARTIFACTS_DIR/patterns.md
+      ```
+
+      Also load upstream phase artifacts if the context references them.
+
+      ## Step 2: Task breakdown rules
+
+      - Each task is ATOMIC: one clear change, independently commit-able.
+      - Each task is VERIFIABLE: there's a specific command or check that proves it works.
+      - Each task is ORDERED: dependencies respected, no forward refs.
+      - Tasks are grouped into WAVES: tasks in the same wave can run in parallel.
+      - Typical phase: 5-15 tasks. <5 = too coarse. >15 = phase should be split.
+
+      ## Step 3: Write PLAN.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-PLAN.md`
+
+      ```markdown
+      # Phase {NN} Plan
+
+      **Phase**: {NN} — {slug}
+      **Approach**: {from DECISIONS.md}
+      **Planned**: {ISO date}
+
+      ## Goal
+
+      {one clear sentence — what must be true when this phase is verified}
+
+      ## Success Criteria
+
+      - [ ] {specific, testable criterion}
+      - [ ] {specific, testable criterion}
+      - [ ] All existing tests pass
+      - [ ] {domain-specific UAT check from CONTEXT.md}
+
+      ## Threat Model (if security-sensitive)
+
+      - **Threat**: {what could go wrong}
+        **Mitigation**: {specific code-level defense}
+        **Verification**: {test that proves mitigation works}
+
+      ## Files
+
+      | File | Action | Lines ~ |
+      |------|--------|---------|
+      | `{path}` | CREATE | ~50 |
+      | `{path}` | UPDATE | +20/-5 |
+      | `{path}` | UPDATE | +10 |
+
+      ## Wave Structure
+
+      **Wave 1** (parallel-safe):
+      - Task 1, Task 2
+
+      **Wave 2** (depends on wave 1):
+      - Task 3, Task 4
+
+      **Wave 3**:
+      - Task 5
+
+      ## Tasks
+
+      ### Task 1: {ACTION} `{file path}`
+
+      **Action**: CREATE / UPDATE
+      **Wave**: 1
+      **Depends on**: {none, or task IDs}
+
+      **Details**:
+      {Specific description — a fresh agent with no context should be able to execute
+      this. Include exact function signatures, exact schema, exact UI copy, etc.}
+
+      **Pattern**: Follow `{analog file:line}`. Specifically mirror:
+      - {imports}
+      - {error-handling shape}
+      - {test structure}
+
+      **Validate**:
+      ```bash
+      {the exact command that proves this task worked}
+      ```
+
+      **Commit message**: `{type}({scope}): {specific subject}`
+
+      ---
+
+      ### Task 2: ...
+
+      ---
+
+      ## Testing Strategy
+
+      | Test file | Test cases | Validates |
+      |-----------|-----------|-----------|
+      | `{path}` | {cases} | {what} |
+
+      ## Validation Commands (run at end of phase)
+
+      ```bash
+      # Type-check
+      {command}
+      # Lint
+      {command}
+      # Unit tests (new + existing)
+      {command}
+      # Integration tests
+      {command}
+      ```
+
+      ## Risks
+
+      | Risk | Impact | Mitigation |
+      |------|--------|------------|
+      | {risk} | H/M/L | {specific action} |
+
+      ## Rollback Plan
+
+      {If this phase introduces a production-affecting change, how do we revert?}
+
+      ## Goal-Backward Check (for the plan-checker)
+
+      Starting from the goal: "{goal statement}"
+
+      Does each task contribute to the goal? If any task doesn't, it shouldn't be here.
+      Does the plan cover every success criterion? If a criterion isn't covered by any
+      task, add the task.
+      ```
+
+      ## Step 4: Do NOT commit yet
+
+      The plan-checker runs next. If it finds issues, `revise` will fix them. Only after
+      `revise` runs clean do we commit.
+
+      Output just the file path so the next node can locate it.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: CHECK — Goal-backward verification of the draft
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: check
+    model: opus
+    depends_on: [draft]
+    context: fresh
+    output_format:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum: [PASS, REVISE]
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              severity:
+                type: string
+                enum: [BLOCKER, MAJOR, MINOR]
+              area:
+                type: string
+              description:
+                type: string
+              suggested_fix:
+                type: string
+      required: [verdict, issues]
+    prompt: |
+      # GSD Plan — Goal-Backward Check
+
+      You are an adversarial plan checker. Your job: challenge the draft plan.
+
+      **Phase**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Read everything fresh
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      ```
+
+      Don't trust the earlier draft node's reasoning. Re-read independently.
+
+      ## Step 2: Apply checks
+
+      For each check, mark PASS or flag an issue.
+
+      **Goal coverage**:
+      - Does every success criterion in PLAN.md map to at least one task?
+      - If a task is removed, which criterion would fail?
+
+      **Atomicity**:
+      - Is each task independently commit-able?
+      - Is any task actually 2+ tasks bundled?
+
+      **Pattern fidelity**:
+      - Does each CREATE task cite a specific analog from the pattern map?
+      - For each analog, does it actually exist? (spot-check 2-3)
+
+      **Dependencies**:
+      - Any forward references (task N depends on task M where M > N)?
+      - Any cycle?
+      - Are inter-phase dependencies (from DECISIONS.md "inherited decisions") honored?
+
+      **Verification**:
+      - Does every task have a `Validate:` command?
+      - Are the commands actually runnable in this repo? Check `CLAUDE.md` for the real
+        commands; don't accept generic `npm test`.
+
+      **Scope**:
+      - Any task NOT in the "Files" table?
+      - Any task addressing something from "Out of scope" in CONTEXT.md?
+
+      **Threat model**:
+      - If the phase touches auth, data, PII, payments, or exposed APIs, is there a
+        threat model section? If not, that's a BLOCKER.
+
+      **Rollback**:
+      - If the phase changes production schema, data, or public contracts, is the
+        rollback plan specific? Generic ("revert the commit") is not enough if migrations
+        are involved.
+
+      ## Step 3: Emit structured output
+
+      Fill the schema:
+
+      - `verdict`: `PASS` if no BLOCKERs and ≤2 MAJORs. Otherwise `REVISE`.
+      - `issues`: list of every issue found. Empty array if PASS with zero issues.
+
+      Each issue:
+      - `severity`: BLOCKER (must fix), MAJOR (should fix), MINOR (nice to fix)
+      - `area`: Goal coverage / Atomicity / Patterns / Dependencies / Verification / Scope / Threat model / Rollback
+      - `description`: what's wrong, specific
+      - `suggested_fix`: concrete edit
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: REVISE — Apply fixes if checker flagged issues
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: revise
+    model: opus
+    depends_on: [check]
+    when: "$check.output.verdict == 'REVISE'"
+    prompt: |
+      # GSD Plan — Revise
+
+      The checker found issues. Apply fixes directly to the plan file.
+
+      **Phase**: $ARGUMENTS
+      **Checker verdict**: $check.output.verdict
+      **Issues**: $check.output
+
+      ---
+
+      ## Step 1: Read the plan
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      ```
+
+      ## Step 2: For each issue in $check.output.issues, apply the suggested_fix
+
+      - BLOCKER issues: must be fixed
+      - MAJOR issues: must be fixed
+      - MINOR issues: fix if obvious, otherwise document as "minor deviation, reviewed
+        and accepted" in a new section
+
+      Edit the plan file with Edit tool. Do NOT regenerate — preserve everything not
+      affected.
+
+      ## Step 3: Re-read and sanity-check
+
+      After edits, read the full plan again. Sanity check that:
+      - All BLOCKERs and MAJORs are addressed
+      - No new issues introduced (e.g., a forward reference added)
+      - The plan still flows logically
+
+      ## Step 4: Output
+
+      List what you changed in concise form:
+
+      ```
+      ## Plan Revised
+
+      Issues addressed: {count BLOCKER} BLOCKER, {count MAJOR} MAJOR, {count MINOR} MINOR
+      Changes:
+      - {area}: {one-line description of edit}
+      - ...
+
+      Ready for commit.
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: COMMIT — Finalize + commit
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: commit
+    model: sonnet
+    depends_on: [check, revise]
+    trigger_rule: any_success
+    context: fresh
+    prompt: |
+      # GSD Plan — Commit
+
+      Finalize the plan file and commit.
+
+      **Phase**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Sanity read
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      ```
+
+      Confirm the file exists and looks complete. Count tasks:
+
+      ```bash
+      grep -c "^### Task [0-9]" "${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      ```
+
+      ## Step 2: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "$(cat <<'EOF'
+      chore(planning): phase ${ARGUMENTS} plan
+
+      - Tasks: {N}
+      - Files changed (planned): {count from Files table}
+      - Approach: {from DECISIONS.md summary, one line}
+      EOF
+      )"
+      ```
+
+      ## Step 3: Output
+
+      ```
+      ## Plan Committed — Phase {NN}
+
+      **File**: .planning/milestones/{version}-phases/{NN}-{slug}/{NN}-PLAN.md
+      **Tasks**: {count}
+      **Waves**: {count}
+      **Files touched (planned)**: {count}
+
+      **Next step (Window 2)**: `archon workflow run gsd-execute {NN}`
+      ```

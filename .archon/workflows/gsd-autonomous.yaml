@@ -1,0 +1,562 @@
+name: gsd-autonomous
+description: |
+  Use when: Decisions are locked for a phase — run plan → execute → verify autonomously
+  in a single DAG invocation. This is the "fire and forget" workflow for Window 2.
+  Triggers: "autonomous phase 01", "gsd autonomous NN", "ship NN".
+  NOT for: Anything that still needs user discussion (run gsd-discuss first).
+  NOT for: Partial re-runs — use the individual gsd-plan / gsd-execute / gsd-verify.
+
+  Chained autonomous pipeline — Window 2 work, no human input:
+  1. PATTERNS   — map new files to existing analogs (same as gsd-plan.patterns)
+  2. DRAFT      — write PLAN.md (Opus for judgment)
+  3. CHECK      — goal-backward plan verification (Opus, adversarial)
+  4. REVISE     — fix any issues (conditional)
+  5. PLAN_COMMIT — commit PLAN.md
+  6. SETUP      — load plan, install deps (same as gsd-execute.setup)
+  7. IMPLEMENT  — Ralph loop: one task per iteration, fresh context (Sonnet + Opus escalation)
+  8. EXEC_REPORT — summary of execution
+  9. LOAD_V     — re-read everything for verify
+  10. SUITE     — run full test suite
+  11. AUDIT     — criterion-by-criterion evidence mapping (Sonnet)
+  12. VERIFY_WRITE — VERIFICATION.md + PR creation
+  13. FINALIZE  — push, open PR, emit final report
+
+  Input: Phase number. Reads {NN}-CONTEXT.md, {NN}-DECISIONS.md, {NN}-RESEARCH.md.
+  Output: PR open against base branch + VERIFICATION.md committed.
+
+  This workflow duplicates node logic from gsd-plan / gsd-execute / gsd-verify because
+  Archon does not support sub-workflow invocation. To change verification logic, change
+  it in THREE places (this file + gsd-verify.yaml). The individual-phase workflows are
+  maintained for partial re-runs.
+
+provider: claude
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1-5: PLAN (mirrors gsd-plan)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: patterns
+    model: sonnet
+    prompt: |
+      # GSD Autonomous — Pattern Mapping
+
+      Map new files to existing analogs. Same logic as gsd-plan's patterns node.
+
+      **Phase**: $ARGUMENTS
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null)
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+      cat CLAUDE.md 2>/dev/null
+      cat .planning/codebase/CONVENTIONS.md 2>/dev/null
+      ```
+
+      For every CREATE in CONTEXT.md's file table, find the closest existing analog
+      (use Grep/Glob, read the analog fully). For every UPDATE, read the current file.
+
+      Write `$ARTIFACTS_DIR/patterns.md` with the mapping table (new file → analog +
+      why). See gsd-plan.yaml for the full template.
+
+  - id: draft
+    model: opus
+    depends_on: [patterns]
+    prompt: |
+      # GSD Autonomous — Draft PLAN.md
+
+      **Phase**: $ARGUMENTS
+      **Pattern map**: $patterns.output
+
+      Load all phase artifacts (CONTEXT.md, DECISIONS.md, RESEARCH.md) and the pattern
+      map. Write `.planning/milestones/{version}-phases/{NN}-*/{NN}-PLAN.md` following
+      the full template in gsd-plan.yaml's draft node (goal, success criteria, threat
+      model, files, wave structure, tasks, testing, validation, risks, rollback,
+      goal-backward check).
+
+      Do NOT commit yet — the check/revise cycle may modify the file.
+
+      Output just the plan file path.
+
+  - id: check
+    model: opus
+    depends_on: [draft]
+    context: fresh
+    output_format:
+      type: object
+      properties:
+        verdict: {type: string, enum: [PASS, REVISE]}
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              severity: {type: string, enum: [BLOCKER, MAJOR, MINOR]}
+              area: {type: string}
+              description: {type: string}
+              suggested_fix: {type: string}
+      required: [verdict, issues]
+    prompt: |
+      # GSD Autonomous — Plan Check (adversarial)
+
+      **Phase**: $ARGUMENTS
+
+      Read PLAN.md + CONTEXT.md + DECISIONS.md fresh. Apply the full check suite from
+      gsd-plan.yaml's check node: goal coverage, atomicity, pattern fidelity,
+      dependencies, verification, scope, threat model, rollback.
+
+      Emit verdict: PASS if no BLOCKERs and ≤2 MAJORs, else REVISE.
+
+  - id: revise
+    model: opus
+    depends_on: [check]
+    when: "$check.output.verdict == 'REVISE'"
+    prompt: |
+      # GSD Autonomous — Revise Plan
+
+      **Phase**: $ARGUMENTS
+      **Issues**: $check.output
+
+      Apply suggested_fix for each issue. BLOCKER and MAJOR must be fixed. Edit the plan
+      file directly (preserve unaffected sections). See gsd-plan.yaml revise node for
+      full instructions.
+
+  - id: plan-commit
+    model: sonnet
+    depends_on: [check, revise]
+    trigger_rule: any_success
+    context: fresh
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+
+      if [ ! -f "$PLAN_FILE" ]; then
+        echo "ERROR: plan file not written: $PLAN_FILE"
+        exit 1
+      fi
+
+      TASK_COUNT=$(grep -c "^### Task [0-9]" "$PLAN_FILE" || echo 0)
+
+      git add .planning/
+      git commit -m "$(cat <<EOF
+      chore(planning): phase ${ARGUMENTS} plan
+
+      - Tasks: ${TASK_COUNT}
+      - Auto-generated via gsd-autonomous
+      EOF
+      )" 2>&1 || echo "nothing to commit"
+
+      echo "PLAN_COMMITTED=$(git rev-parse HEAD)"
+      echo "TASK_COUNT=$TASK_COUNT"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 6-8: EXECUTE (mirrors gsd-execute)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: setup
+    depends_on: [plan-commit]
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      CONTEXT_FILE="${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      PROGRESS_FILE="${PHASE_DIR}progress.txt"
+
+      # Install deps (see gsd-execute.setup for full package-manager list)
+      if [ -f "bun.lock" ] || [ -f "bun.lockb" ]; then bun install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "uv.lock" ]; then uv sync 2>&1 | tail -3 || true
+      elif [ -f "poetry.lock" ]; then poetry install --no-interaction 2>&1 | tail -3 || true
+      elif [ -f "package-lock.json" ]; then npm ci 2>&1 | tail -3 || true
+      elif [ -f "yarn.lock" ]; then yarn install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "pnpm-lock.yaml" ]; then pnpm install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "Gemfile.lock" ]; then bundle install 2>&1 | tail -3 || true
+      fi
+
+      if [ ! -f "$PROGRESS_FILE" ]; then
+        printf "# Phase %s execution progress\n# Started: %s\n\n" "${ARGUMENTS}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$PROGRESS_FILE"
+      fi
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PHASE_NUMBER=${ARGUMENTS}"
+      echo "PLAN_FILE=$PLAN_FILE"
+      echo "CONTEXT_FILE=$CONTEXT_FILE"
+      echo "PROGRESS_FILE=$PROGRESS_FILE"
+      echo "BRANCH=$(git branch --show-current)"
+      echo "BASE_COMMIT=$(git rev-parse HEAD)"
+      echo "TASK_COUNT=$(grep -c '^### Task [0-9]' "$PLAN_FILE" || true)"
+
+      echo "=== PLAN ==="
+      cat "$PLAN_FILE"
+      echo "=== CONTEXT ==="
+      cat "$CONTEXT_FILE"
+
+  - id: implement
+    depends_on: [setup]
+    idle_timeout: 900000
+    model: sonnet
+    fallbackModel: claude-opus-4-7
+    loop:
+      prompt: |
+        # GSD Autonomous — Implementation Loop
+
+        Fresh session. Read plan + progress from disk, implement ONE task, validate,
+        commit, update progress, exit. Same protocol as gsd-execute.implement.
+
+        **Setup output**: $setup.output
+        **Phase**: $ARGUMENTS
+
+        ---
+
+        ## Phase 0 — Load
+
+        Parse PHASE_DIR, PLAN_FILE, CONTEXT_FILE, PROGRESS_FILE from setup output.
+        Re-read all from disk (snapshot is stale after previous iterations).
+        Read CLAUDE.md. Check `git log --oneline -10` and `git status --short`.
+
+        ## Phase 1 — Select next task
+
+        Pick lowest-numbered incomplete task whose deps are satisfied, within the
+        current wave. If all tasks done → Phase 7 (Completion).
+
+        Announce selection clearly.
+
+        ## Phase 2 — Model escalation (implicit)
+
+        If task mentions "architecture", "invariant", "crypto", "auth", "payments",
+        "data-migration", or is marked `Risk: HIGH`, or fewer than 4 tasks remain:
+        apply extra care — read more context, check more neighbors, write tests first
+        where possible. Note the escalation.
+
+        ## Phase 3 — Implement
+
+        Read the file. Read the pattern file. Make the change. Incremental type-check.
+        Follow the plan's details and pattern EXACTLY. If the plan drifted (file moved,
+        etc.), STOP, log the deviation, skip to next task.
+
+        ## Phase 4 — Validate
+
+        Run the task's `Validate:` command. Up to 3 fix attempts. If still failing:
+        stash changes, write FAILED to progress, end iteration.
+
+        ## Phase 5 — Commit
+
+        Atomic commit with a message matching repo style.
+
+        ## Phase 6 — Progress
+
+        Append to progress.txt:
+        ```
+        ## Task {N}: {title} — COMPLETED
+        Date: {ISO}
+        Files: {list}
+        Commit: {short hash}
+        Validation: PASS
+        ---
+        ```
+        Commit progress separately.
+
+        ## Phase 7 — Completion check
+
+        If every task is COMPLETED or FAILED and phase-wide validation passes:
+        - `git push -u origin HEAD`
+        - `<promise>COMPLETE</promise>`
+
+        Otherwise end iteration normally (do NOT emit signal).
+
+        ---
+
+        **CRITICAL**: Only emit the signal when EVERY planned task is resolved AND
+        phase-wide validation passed. Don't emit because you finished your current task.
+      until: COMPLETE
+      max_iterations: 30
+      fresh_context: true
+
+  - id: exec-report
+    model: sonnet
+    depends_on: [implement]
+    context: fresh
+    bash: |
+      set +e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PROGRESS_FILE="${PHASE_DIR}progress.txt"
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+
+      PLANNED=$(grep -c '^### Task [0-9]' "$PLAN_FILE" || echo 0)
+      COMPLETED=$(grep -c '^## Task.*— COMPLETED' "$PROGRESS_FILE" || echo 0)
+      FAILED=$(grep -c '^## Task.*— FAILED' "$PROGRESS_FILE" || echo 0)
+
+      echo "PLANNED=$PLANNED"
+      echo "COMPLETED=$COMPLETED"
+      echo "FAILED=$FAILED"
+      echo "=== COMMITS ==="
+      git log --oneline -20
+      echo "=== STATS ==="
+      git diff --stat HEAD~${COMPLETED}..HEAD 2>/dev/null || git diff --stat
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 9-12: VERIFY (mirrors gsd-verify)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: load-v
+    depends_on: [exec-report]
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PLAN_COMMIT=$PLAN_COMMIT"
+      echo "=== COMMITS ==="
+      git log --oneline "${PLAN_COMMIT}..HEAD"
+      echo "=== FILES_CHANGED ==="
+      git diff --stat "${PLAN_COMMIT}..HEAD"
+      echo "=== PLAN ==="
+      cat "$PLAN_FILE"
+      echo "=== PROGRESS ==="
+      cat "${PHASE_DIR}progress.txt"
+
+  - id: suite
+    depends_on: [load-v]
+    bash: |
+      set +e
+      mkdir -p $ARTIFACTS_DIR
+
+      echo "=== TYPE_CHECK ==="
+      if grep -q '"type-check"' package.json 2>/dev/null; then
+        bun run type-check > "$ARTIFACTS_DIR/type-check.log" 2>&1 || npm run type-check > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      elif [ -f "tsconfig.json" ]; then
+        npx tsc --noEmit > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      elif command -v mypy &>/dev/null && [ -f "pyproject.toml" ]; then
+        mypy . > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      else
+        echo "TYPE_CHECK_EXIT=skip"
+      fi
+
+      echo "=== LINT ==="
+      if grep -q '"lint"' package.json 2>/dev/null; then
+        (bun run lint 2>&1 || npm run lint 2>&1) > "$ARTIFACTS_DIR/lint.log" 2>&1
+        echo "LINT_EXIT=$?"
+      elif command -v ruff &>/dev/null && [ -f "pyproject.toml" ]; then
+        ruff check . > "$ARTIFACTS_DIR/lint.log" 2>&1
+        echo "LINT_EXIT=$?"
+      else
+        echo "LINT_EXIT=skip"
+      fi
+
+      echo "=== TESTS ==="
+      if grep -q '"test"' package.json 2>/dev/null; then
+        (bun run test 2>&1 || npm test 2>&1) > "$ARTIFACTS_DIR/test.log" 2>&1
+        echo "TEST_EXIT=$?"
+      elif command -v pytest &>/dev/null; then
+        pytest > "$ARTIFACTS_DIR/test.log" 2>&1
+        echo "TEST_EXIT=$?"
+      else
+        echo "TEST_EXIT=skip"
+      fi
+
+      echo "=== BUILD ==="
+      if grep -q '"build"' package.json 2>/dev/null; then
+        (bun run build 2>&1 || npm run build 2>&1) > "$ARTIFACTS_DIR/build.log" 2>&1
+        echo "BUILD_EXIT=$?"
+      else
+        echo "BUILD_EXIT=skip"
+      fi
+
+      tail -20 "$ARTIFACTS_DIR/type-check.log" 2>/dev/null
+      tail -20 "$ARTIFACTS_DIR/lint.log" 2>/dev/null
+      tail -40 "$ARTIFACTS_DIR/test.log" 2>/dev/null
+      tail -20 "$ARTIFACTS_DIR/build.log" 2>/dev/null
+
+  - id: audit
+    model: sonnet
+    depends_on: [load-v, suite]
+    context: fresh
+    prompt: |
+      # GSD Autonomous — Goal-Backward Audit
+
+      **Phase**: $ARGUMENTS
+      **Load output**: $load-v.output
+      **Suite output**: $suite.output
+
+      Apply the full audit protocol from gsd-verify.yaml's audit node: extract success
+      criteria from PLAN.md, map each to implementing code + test, classify as
+      COVERED / PARTIAL / MISSING. Check for deletions of existing tests. Check plan
+      vs. actual file changes. Check threat mitigations if plan had a threat model.
+
+      Output the structured audit report with per-criterion rows, deviation report,
+      regression report, and (if applicable) threat-mitigation report.
+
+  - id: verify-write
+    model: sonnet
+    depends_on: [audit]
+    output_format:
+      type: object
+      properties:
+        verdict: {type: string, enum: [PASS, PARTIAL, FAIL]}
+        criteria_covered: {type: integer}
+        criteria_partial: {type: integer}
+        criteria_missing: {type: integer}
+        suite_passing: {type: boolean}
+        regressions_detected: {type: boolean}
+        summary: {type: string}
+      required: [verdict, criteria_covered, criteria_partial, criteria_missing, suite_passing, regressions_detected, summary]
+    prompt: |
+      # GSD Autonomous — Write VERIFICATION.md + emit verdict
+
+      **Phase**: $ARGUMENTS
+      **Audit**: $audit.output
+
+      Write `.planning/milestones/{version}-phases/{NN}-*/{NN}-VERIFICATION.md` with
+      the full template from gsd-verify.yaml (summary, success criteria table, suite
+      results, plan-vs-reality, regressions, threat coverage, outstanding items,
+      recommendation).
+
+      Commit:
+      ```bash
+      git add .planning/
+      git commit -m "chore(planning): phase ${ARGUMENTS} verification — {VERDICT}"
+      ```
+
+      Verdict rules:
+      - PASS: all COVERED + suite passing + no regressions
+      - PARTIAL: at most some PARTIAL + suite passing + no regressions
+      - FAIL: any MISSING core criterion, OR suite failing, OR regressions
+
+      Emit structured output.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 13: FINALIZE — Push + open PR
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: finalize
+    model: sonnet
+    depends_on: [verify-write]
+    context: fresh
+    prompt: |
+      # GSD Autonomous — Finalize
+
+      **Phase**: $ARGUMENTS
+      **Verification verdict**: $verify-write.output.verdict
+      **Verification summary**: $verify-write.output.summary
+
+      ---
+
+      ## Step 1: Push
+
+      ```bash
+      git push -u origin HEAD 2>&1 || true
+      ```
+
+      ## Step 2: Skip PR if FAIL
+
+      If $verify-write.output.verdict == "FAIL":
+
+      Output:
+      ```
+      ===============================================================
+      PHASE ${ARGUMENTS} — VERIFICATION FAILED
+      ===============================================================
+
+      {$verify-write.output.summary}
+
+      Verdict: FAIL
+      Criteria: {covered} covered, {partial} partial, {missing} missing
+      Suite passing: {suite_passing}
+      Regressions: {regressions_detected}
+
+      -- No PR opened ------------------------------------------------
+      Fix the issues flagged in VERIFICATION.md and re-run:
+        archon workflow run gsd-execute ${ARGUMENTS}
+        archon workflow run gsd-verify ${ARGUMENTS}
+      ===============================================================
+      ```
+
+      And end without opening a PR.
+
+      ## Step 3: Open PR (if PASS or PARTIAL)
+
+      Check if PR already exists:
+      ```bash
+      gh pr view HEAD --json url 2>/dev/null || echo "NO_PR"
+      ```
+
+      If none exists:
+
+      Read the milestone + phase context:
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      VERIFY_FILE="${PHASE_DIR}${ARGUMENTS}-VERIFICATION.md"
+      ```
+
+      Draft PR title: `{NN}: {phase slug}` (kebab from roadmap).
+
+      Draft PR body with HEREDOC:
+
+      ```bash
+      gh pr create --draft --base "$BASE_BRANCH" --title "..." --body "$(cat <<'EOF'
+      ## Phase ${ARGUMENTS}: {phase slug}
+
+      **Intent**: {from CONTEXT.md}
+      **Verdict**: {verdict}
+
+      ## Summary
+
+      {verify-write.summary}
+
+      ## Changes
+
+      {from git diff --stat + commit list}
+
+      ## Verification
+
+      {paste the Success Criteria table from VERIFICATION.md}
+
+      ## Outstanding Items (PARTIAL only)
+
+      {from VERIFICATION.md Outstanding Items}
+
+      ## References
+      - Plan: `${PLAN_FILE}`
+      - Verification: `${VERIFY_FILE}`
+      - Decisions: `${PHASE_DIR}${ARGUMENTS}-DECISIONS.md`
+
+      🤖 Generated by gsd-autonomous (Archon workflow).
+      EOF
+      )"
+      ```
+
+      ## Step 4: Final report
+
+      Output:
+
+      ```
+      ===============================================================
+      PHASE ${ARGUMENTS} — AUTONOMOUS RUN COMPLETE
+      ===============================================================
+
+      Verdict: {verdict}
+      Summary: {summary}
+
+      -- Plan -----------------------------------------------------------
+      Tasks: {count} planned, {completed} completed, {failed} failed
+
+      -- Execute --------------------------------------------------------
+      Commits: {count}
+      Files changed: {count}
+
+      -- Verify ---------------------------------------------------------
+      Success criteria: {covered} COVERED, {partial} PARTIAL, {missing} MISSING
+      Suite: {type-check, lint, tests, build}
+      Regressions: {yes/no}
+
+      -- PR -------------------------------------------------------------
+      {url or "not opened (FAIL)"}
+      ===============================================================
+      ```

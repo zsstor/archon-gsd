@@ -1,0 +1,122 @@
+name: gsd-status
+description: |
+  Use when: Want a quick read-only dashboard of what's going on across .planning/.
+  Maps to GSD-2's /gsd2-status (format-warning dashboard).
+  Triggers: "gsd status", "planning status", "what's going on".
+  NOT for: Mutating state. This workflow only reads.
+
+  Read-only dashboard: current milestone + phases + their artifact completeness +
+  format warnings. Fast, no model calls for the scan itself — one Haiku summary.
+
+  Input: none.
+
+provider: claude
+
+nodes:
+  - id: scan
+    bash: |
+      set +e
+
+      if [ ! -d ".planning" ]; then
+        echo "NO_PLANNING_DIR"
+        echo "Run: archon workflow run gsd-new-milestone \"v1.0 — initial\""
+        exit 0
+      fi
+
+      echo "=== CURRENT_MILESTONE ==="
+      if [ -f ".planning/MILESTONE.md" ]; then
+        cat .planning/MILESTONE.md
+      else
+        echo "NONE"
+      fi
+
+      echo "=== ROADMAP_HEAD ==="
+      if [ -f ".planning/ROADMAP.md" ]; then
+        head -40 .planning/ROADMAP.md
+      else
+        echo "NONE"
+      fi
+
+      echo "=== PHASE_INVENTORY ==="
+      for phase_dir in .planning/milestones/*-phases/*/; do
+        if [ -d "$phase_dir" ]; then
+          PHASE_NAME=$(basename "$phase_dir")
+          PHASE_NUM="${PHASE_NAME%%-*}"
+          echo "-- PHASE $PHASE_NUM ($(basename "$phase_dir")) --"
+          for artifact in RESEARCH DECISIONS CONTEXT PLAN VERIFICATION; do
+            FILE="${phase_dir}${PHASE_NUM}-${artifact}.md"
+            if [ -f "$FILE" ]; then
+              LINES=$(wc -l < "$FILE")
+              echo "  ${artifact}: present (${LINES} lines)"
+            else
+              echo "  ${artifact}: MISSING"
+            fi
+          done
+          if [ -f "${phase_dir}progress.txt" ]; then
+            COMPLETED=$(grep -c '^## Task.*— COMPLETED' "${phase_dir}progress.txt" 2>/dev/null || echo 0)
+            FAILED=$(grep -c '^## Task.*— FAILED' "${phase_dir}progress.txt" 2>/dev/null || echo 0)
+            echo "  progress: ${COMPLETED} complete / ${FAILED} failed"
+          else
+            echo "  progress: not started"
+          fi
+        fi
+      done
+
+      echo "=== QUEUED_MILESTONES ==="
+      for f in .planning/milestones/queued/*.md; do
+        if [ -f "$f" ]; then
+          echo "  $(basename "$f")"
+        fi
+      done
+
+      echo "=== GIT_RECENT ==="
+      git log --oneline -5
+      echo "=== GIT_BRANCH ==="
+      git branch --show-current
+      echo "=== UNCOMMITTED ==="
+      git status --short
+
+  - id: summarize
+    model: haiku
+    depends_on: [scan]
+    prompt: |
+      # GSD Status Dashboard
+
+      Summarize the scan output into a concise dashboard. No hedging, no narrative —
+      terse tabular output.
+
+      **Scan**: $scan.output
+
+      ---
+
+      Output format:
+
+      ```
+      ┌─── GSD Status ────────────────────────────────────────────────┐
+
+      MILESTONE  {version or "none active"}
+      BRANCH     {branch name}
+      UNCOMMIT   {count or "clean"}
+
+      Phases
+      ────────────────────────────────────────────────────────────────
+      #  Slug                RES  DEC  CTX  PLN  EXE   VER   State
+      ────────────────────────────────────────────────────────────────
+      01 multi-tenant-auth   ✓    ✓    ✓    ✓    8/8   PASS  ready-to-merge
+      02 role-model          ✓    ✓    ✓    ✓    3/7   —     executing
+      03 audit-log           ✓    —    —    —    —     —     needs-discuss
+      ────────────────────────────────────────────────────────────────
+
+      Queued: {count} ({list version numbers})
+
+      Recent commits:
+        {tail}
+
+      Next actions
+      ────────────────────────────────────────────────────────────────
+      {bulleted: for each phase not at PASS, what's the next command}
+      ```
+
+      Legend: ✓ = artifact present, — = missing, partial ratios shown for EXE/VER.
+
+      If NO_PLANNING_DIR, just print the bootstrap hint.

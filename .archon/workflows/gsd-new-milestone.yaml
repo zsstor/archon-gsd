@@ -1,0 +1,483 @@
+name: gsd-new-milestone
+description: |
+  Use when: Starting a new milestone cycle — capture requirements, create roadmap, slice
+  into phases. Maps to GSD's /gsd-new-milestone + requirements gathering.
+  Triggers: "new milestone", "start v2.0", "plan next milestone", "milestone bootstrap".
+  NOT for: Continuing an existing milestone (use gsd-discuss on a specific phase).
+  NOT for: Project-level setup (run /gsd-new-project in Claude Code once per repo).
+
+  Interactive milestone bootstrap — Window 1 work:
+  1. UNDERSTAND — restate the milestone intent, explore what already exists
+  2. REQUIREMENTS — adaptive Q&A to capture what must be true when the milestone ships
+  3. ROADMAP — slice the milestone into phases with explicit dependencies
+  4. COMMIT — write MILESTONE.md, REQUIREMENTS.md, and ROADMAP.md to .planning/
+
+  Input: Milestone name + 1-2 sentence intent (e.g., "v2.0 — multi-tenant auth").
+
+provider: claude
+interactive: true
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: UNDERSTAND — Restate + explore what exists
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: understand
+    model: opus
+    prompt: |
+      # GSD New Milestone — Understand
+
+      You are a senior tech lead starting a new milestone cycle. Your job right now is
+      to DEEPLY UNDERSTAND what the user wants to ship before any planning happens.
+
+      **User's milestone request**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Read the project state
+
+      1. **Read `.planning/PROJECT.md`** — capture the project's north star and constraints.
+         If it doesn't exist, note that — we can't do a milestone without project context.
+      2. **Read `.planning/ROADMAP.md`** — see what milestones already exist and how they relate.
+      3. **Read `.planning/codebase/*.md` if present** — architecture, stack, conventions, concerns.
+      4. **Read `CLAUDE.md`** at repo root — project conventions.
+      5. **Check git log** for recent activity: `git log --oneline -20`.
+
+      ## Step 2: Parse the milestone intent
+
+      The user said: **$ARGUMENTS**
+
+      Restate in 2-3 sentences what you think they want to ship. Be concrete. If the input
+      is vague (e.g., just "v2.0"), say so and ask for a sharper statement.
+
+      ## Step 3: Surface what already exists
+
+      Before any requirements work, identify what's already in the repo that's relevant:
+
+      - Existing features that overlap with the proposed milestone
+      - Existing abstractions that could be extended vs. replaced
+      - Existing tests that set expectations for the area
+      - Prior-milestone artifacts that constrain this one
+
+      Cite actual file:line references. Do not guess.
+
+      ## Step 4: Present back
+
+      ```
+      ## Milestone: {restated name and intent}
+
+      ## What I Found
+
+      **Project context:**
+      - {from PROJECT.md}
+      - {from ROADMAP.md}
+
+      **Existing code relevant to this milestone:**
+      - `{file:line}` — {what it does}
+      - `{file:line}` — {what it does}
+
+      **Prior milestones:**
+      - {milestone} — {status, what it delivered}
+
+      ## Initial Observations
+
+      - {surprising finding or constraint}
+      - {area the milestone would touch heavily}
+      - {potential re-use opportunity}
+
+      ## Ready to gather requirements?
+
+      Confirm my understanding is right, or correct it. Then I'll ask the requirements
+      questions.
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # GATE 1: User confirms understanding
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: understand-gate
+    approval:
+      message: "Confirm the milestone framing, or correct it. Next step: requirements Q&A."
+      capture_response: true
+    depends_on: [understand]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: REQUIREMENTS — Adaptive Q&A loop (GSD-1 style)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: requirements
+    model: opus
+    depends_on: [understand-gate]
+    loop:
+      prompt: |
+        # GSD New Milestone — Requirements Capture
+
+        You are in an adaptive questioning loop. The user's original request was:
+        **$ARGUMENTS**
+
+        Your prior understanding output: **$understand.output**
+        User's confirmation/correction: **$understand-gate.output**
+        User's latest response in this loop: **$LOOP_USER_INPUT**
+
+        ---
+
+        ## If this is the FIRST iteration (LOOP_USER_INPUT is empty):
+
+        Present the **initial requirements questions**, grouped by intent. Ask 5-7
+        focused questions total. Reference actual code you found during `understand`
+        — do not ask generic questions.
+
+        **Group A — Outcomes (what must be true when this ships):**
+        1. What's the single sentence that describes "this milestone succeeded"?
+        2. What's the user-facing behavior change? (Be concrete: what can a user do after
+           shipping that they couldn't before?)
+        3. What measurable thing would prove it works? (Metric, test pass rate, UAT
+           checklist, production incident absence, etc.)
+
+        **Group B — Boundaries (scope fences):**
+        4. What's explicitly OUT of scope for this milestone, even if related?
+        5. What existing behavior must NOT regress?
+
+        **Group C — Constraints:**
+        6. Deadline, budget, or external dependency that shapes the milestone?
+        7. Non-negotiable tech choices or anti-choices?
+
+        End with: "Answer as many as you can. If a question is wrong or doesn't apply,
+        say why. We'll iterate."
+
+        ## If the user responded (subsequent iterations):
+
+        ### Step 1: Process their answers carefully
+
+        - Which questions did they answer directly?
+        - Which did they push back on, and why?
+        - What new information did they surface that I didn't ask about?
+        - What contradictions appeared vs. the earlier turns?
+
+        ### Step 2: Do targeted research if they pointed to code
+
+        If they referenced a file, a feature, a prior decision — go read it. Cite file:line
+        in your next response.
+
+        ### Step 3: Update your running understanding
+
+        Maintain a mental checklist of what requirements are now CONFIRMED vs. still OPEN.
+        On every iteration, output this checklist so the user can see convergence:
+
+        ```
+        ## Requirements — Running Tally
+
+        **Confirmed:**
+        - [x] {requirement with one-line restatement in the user's own terms}
+        - [x] {requirement}
+
+        **Still open:**
+        - [ ] {question area that hasn't been resolved}
+        - [ ] {question area}
+
+        **Tensions / ambiguities I noticed:**
+        - {contradiction or trade-off the user should decide}
+        ```
+
+        ### Step 4: Ask the NEXT batch of questions
+
+        Pick 2-4 questions that:
+        - Address the biggest open area
+        - Resolve a tension the user surfaced
+        - Probe an assumption you heard but aren't sure about
+
+        Do NOT re-ask questions they already answered. Do NOT ask generic boilerplate.
+
+        ### Step 5: Converge when ready
+
+        When the **Confirmed** list is comprehensive enough to write a MILESTONE.md +
+        REQUIREMENTS.md, say:
+
+        ```
+        I have enough to write up the requirements. Here's what I'd commit:
+
+        ## Milestone: {name}
+
+        **Intent**: {one sentence}
+
+        **Success**: {measurable outcome}
+
+        **Requirements**:
+        1. {requirement}
+        2. {requirement}
+        ...
+
+        **Out of scope**: {list}
+        **Constraints**: {list}
+
+        Say "ready" to lock this in, or push back on anything.
+        ```
+
+        **CRITICAL — READ THIS CAREFULLY**:
+        - NEVER output <promise>REQUIREMENTS_LOCKED</promise> unless the user's LATEST
+          message contains an explicit approval: "ready", "lock it in", "that's right",
+          "proceed", "approved", "ship it".
+        - Questions, feedback, additions, or requests for changes are NOT approval.
+        - If the user says "also add X" → incorporate X, present the updated tally, do NOT
+          emit the signal.
+        - If the user corrects something → correct it, present the updated tally, do NOT
+          emit the signal.
+        - The ONLY correct time to emit the signal is when the user explicitly says "I
+          approve these requirements as stated, write them up."
+      until: REQUIREMENTS_LOCKED
+      max_iterations: 20
+      interactive: true
+      gate_message: |
+        Answer the questions above, correct my framing, or say "ready" when the
+        requirements tally looks complete.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: ROADMAP — Slice into phases with dependencies
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: roadmap
+    model: opus
+    depends_on: [requirements]
+    context: fresh
+    prompt: |
+      # GSD New Milestone — Roadmap Generation
+
+      Requirements have been locked. Your job: slice the milestone into phases.
+
+      **Milestone request**: $ARGUMENTS
+      **Locked requirements (from discussion)**: $requirements.output
+
+      ---
+
+      ## Step 1: Re-read the codebase
+
+      Before slicing, re-read the files you touched during `understand`. State may have
+      shifted. You need current, verified understanding.
+
+      Also read `.planning/ROADMAP.md` to see existing phase numbering and conventions
+      (decimal phases, phase-dir naming).
+
+      ## Step 2: Slice rules
+
+      - Each phase = one atomic deliverable. "Atomic" means: if we stopped after this
+        phase, something coherent shipped.
+      - Phases average 0.5-2 days of focused work. Larger → split. Smaller → merge.
+      - Foundation first: phases that other phases depend on come earlier.
+      - Risky-first where possible: if something has a chance of blowing up the plan,
+        front-load it.
+      - Testing is not a separate phase unless the test infrastructure itself is the
+        deliverable. Each phase produces tested code.
+      - Verification is implicit: every phase ends with a gsd-verify run.
+
+      ## Step 3: For each phase, specify
+
+      ```yaml
+      phase_number: "NN"
+      slug: kebab-case-name
+      intent: One sentence — what ships after this phase.
+      delivers:
+        - Specific, user-visible or developer-visible outcome
+        - Another specific outcome
+      depends_on: [list of phase numbers this phase requires]
+      blocks: [phase numbers that require this one]
+      estimated_effort: small | medium | large
+      risk: low | medium | high — and why
+      verification: How we'll know this phase is done
+      ```
+
+      ## Step 4: Write .planning/milestones/{version}-ROADMAP.md
+
+      Derive version from the milestone name or ask.
+
+      ```bash
+      mkdir -p .planning/milestones
+      ```
+
+      Write the file with this structure:
+
+      ```markdown
+      # Milestone {version} Roadmap
+
+      **Intent**: {from requirements}
+      **Success criteria**: {from requirements}
+
+      ## Requirements Summary
+      (copy from requirements discussion)
+
+      ## Phase Breakdown
+
+      ### Phase 01 — {slug}
+      **Intent**: ...
+      **Delivers**: ...
+      **Depends on**: ...
+      **Blocks**: ...
+      **Effort**: ...
+      **Risk**: ...
+      **Verification**: ...
+
+      ### Phase 02 — ...
+      ...
+
+      ## Dependency Graph (textual)
+
+      01 ─┬─> 02 ─> 04
+          └─> 03 ─┘
+
+      ## Out of Scope
+      - {item}
+
+      ## Constraints
+      - {item}
+      ```
+
+      ## Step 5: Write .planning/MILESTONE.md (current milestone pointer)
+
+      ```markdown
+      # Current Milestone: {version}
+
+      **Started**: {ISO date}
+      **Intent**: {one sentence}
+      **Phases**: {count}
+      **Roadmap**: `.planning/milestones/{version}-ROADMAP.md`
+      ```
+
+      ## Step 6: Update .planning/ROADMAP.md (top-level)
+
+      Append a line:
+      ```markdown
+      - **{version}** — {intent} — started {ISO date} — [roadmap](./milestones/{version}-ROADMAP.md)
+      ```
+
+      ## Step 7: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "$(cat <<'EOF'
+      chore(planning): bootstrap milestone {version}
+
+      - Intent: {one sentence}
+      - {N} phases
+      - Roadmap: .planning/milestones/{version}-ROADMAP.md
+      EOF
+      )"
+      ```
+
+      ## Step 8: Output summary
+
+      ```
+      ## Milestone Bootstrapped
+
+      **Version**: {version}
+      **Phases**: {count}
+      **Files written**:
+      - .planning/MILESTONE.md
+      - .planning/milestones/{version}-ROADMAP.md
+      - .planning/ROADMAP.md (updated)
+
+      **Next step**: `archon workflow run gsd-research 01` to start phase 01.
+      ```
+
+      Verify every file path you reference exists. Verify every dependency in the phase
+      graph is valid (no forward references, no cycles).
+
+  # ═══════════════════════════════════════════════════════════════
+  # GATE 2: User approves roadmap
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: roadmap-gate
+    depends_on: [roadmap]
+    loop:
+      prompt: |
+        # GSD New Milestone — Roadmap Review
+
+        The roadmap has been drafted and committed. The user is reviewing.
+
+        **Draft roadmap output**: $roadmap.output
+        **User's feedback**: $LOOP_USER_INPUT
+
+        ---
+
+        ## If no feedback yet (first iteration):
+
+        Read the committed roadmap from disk:
+
+        ```bash
+        ls -t .planning/milestones/*-ROADMAP.md | head -1
+        ```
+
+        Present a concise summary of the phases and dependency graph. Ask the user to
+        review and approve, or suggest changes.
+
+        ## If the user approved explicitly:
+
+        "Approved" / "looks good" / "lgtm" / "ready" / "proceed" — signal completion:
+
+        <promise>ROADMAP_APPROVED</promise>
+
+        ## If the user requested changes:
+
+        1. Edit the roadmap file directly.
+        2. If phase numbering changes, update cross-references.
+        3. Re-commit with message `chore(planning): revise milestone {version} roadmap`.
+        4. Show the diff:
+           ```bash
+           git show HEAD --stat
+           ```
+        5. Ask them to review again.
+
+        **CRITICAL**: Never emit <promise>ROADMAP_APPROVED</promise> unless the user's
+        LATEST message explicitly approves. Questions, edits, and "what if" are not
+        approval.
+      until: ROADMAP_APPROVED
+      max_iterations: 10
+      interactive: true
+      gate_message: |
+        Review the roadmap. Suggest changes, or say "approved" to proceed to phase 01.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: FINALIZE — Push and report
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: finalize
+    model: sonnet
+    depends_on: [roadmap-gate]
+    context: fresh
+    prompt: |
+      # GSD New Milestone — Finalize
+
+      Push the milestone commits and output a handoff summary.
+
+      ```bash
+      git push -u origin HEAD 2>&1 || true
+      git log --oneline -5
+      ```
+
+      Read the roadmap:
+      ```bash
+      ls -t .planning/milestones/*-ROADMAP.md | head -1
+      ```
+
+      Output:
+
+      ```
+      ===============================================================
+      MILESTONE BOOTSTRAPPED
+      ===============================================================
+
+      Version: {version}
+      Roadmap: .planning/milestones/{version}-ROADMAP.md
+      Phases: {count}
+      Pushed: {branch}
+
+      -- Phase Queue ---------------------------------------------------
+      01 — {slug}  (no deps)           READY
+      02 — {slug}  (depends on 01)     blocked
+      03 — {slug}  (depends on 01)     blocked
+      ...
+
+      -- Next Actions --------------------------------------------------
+      Window 1:  archon workflow run gsd-research 01
+      Window 1:  archon workflow run gsd-discuss 01
+      Window 2:  archon workflow run gsd-autonomous 01
+      ===============================================================
+      ```

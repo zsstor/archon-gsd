@@ -1,0 +1,168 @@
+name: gsd-code-review
+description: |
+  Use when: A phase has shipped (or is shipping) — review the changed code for bugs,
+  security issues, and code-quality problems. Maps to GSD's /gsd-code-review.
+  Triggers: "code review phase 01", "gsd review NN", "review phase".
+  NOT for: Auto-fixing review issues (run gsd-code-review-fix separately — not
+  included in v1 of this bundle; re-run gsd-execute with the REVIEW.md findings
+  inlined into PLAN.md, or fix manually).
+
+  Autonomous code review — produces REVIEW.md with severity-classified findings.
+  1. LOAD    — plan, context, decisions, full diff for the phase
+  2. REVIEW  — two passes: correctness (Opus) and quality/patterns (Sonnet)
+  3. FUSE    — deduplicate, rank by severity, write REVIEW.md
+
+  Input: Phase number. Reads everything committed since the plan was committed.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PLAN_COMMIT=$PLAN_COMMIT"
+
+      echo "=== FILES_CHANGED ==="
+      git diff --name-only "${PLAN_COMMIT}..HEAD"
+
+      echo "=== FULL_DIFF ==="
+      git diff "${PLAN_COMMIT}..HEAD"
+
+      echo "=== PLAN ==="
+      cat "$PLAN_FILE"
+      echo ""
+      echo "=== CONTEXT ==="
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      echo ""
+      echo "=== DECISIONS ==="
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+
+  - id: correctness
+    model: opus
+    depends_on: [load]
+    context: fresh
+    prompt: |
+      # Code Review — Correctness Pass
+
+      You are reviewing phase ${ARGUMENTS} for CORRECTNESS. Look for:
+      - Bugs (off-by-one, null/none, wrong API usage, wrong loop bounds, bad comparisons)
+      - Security issues (SQLi, XSS, SSRF, auth bypass, secret exposure, path traversal,
+        race conditions, TOCTOU)
+      - Logic errors (missing branches, wrong state transitions, leaked resources)
+      - Concurrency bugs (data races, deadlocks, unlocked shared state)
+
+      **Phase context**: $load.output
+
+      ---
+
+      Produce an array of findings, each:
+      ```
+      ### Finding {N}: {short title}
+      **Severity**: BLOCKER / MAJOR / MINOR
+      **File**: `{file:line}`
+      **Category**: bug / security / logic / concurrency
+      **Description**: {what's wrong}
+      **Proof**: {scenario that triggers it — how would this manifest}
+      **Suggested fix**: {concrete edit}
+      ```
+
+      If nothing found, output `## Correctness — CLEAN` and stop.
+
+  - id: quality
+    model: sonnet
+    depends_on: [load]
+    context: fresh
+    prompt: |
+      # Code Review — Quality Pass
+
+      You are reviewing phase ${ARGUMENTS} for QUALITY. Look for:
+      - Violations of `CLAUDE.md` conventions
+      - Departures from patterns established in neighbor files
+      - Over-engineering (unnecessary abstraction, premature generalization)
+      - Under-engineering (duplication that'll bite later)
+      - Missing tests (paths exercised in production but not in tests)
+      - Dead code (new unused functions, unused imports, unreachable branches)
+      - Comments that describe WHAT instead of WHY
+      - Commented-out code
+
+      **Phase context**: $load.output
+
+      ---
+
+      Produce findings in the same shape as the correctness pass. If nothing found,
+      output `## Quality — CLEAN`.
+
+  - id: fuse
+    model: sonnet
+    depends_on: [correctness, quality]
+    prompt: |
+      # Code Review — Fuse + Write REVIEW.md
+
+      **Correctness findings**: $correctness.output
+      **Quality findings**: $quality.output
+
+      ---
+
+      ## Step 1: Deduplicate
+
+      If two findings reference the same file:line and same issue, merge into one
+      (keep the higher severity).
+
+      ## Step 2: Rank
+
+      Order: BLOCKER → MAJOR → MINOR. Within a severity, order by file path.
+
+      ## Step 3: Write REVIEW.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-REVIEW.md`
+
+      ```markdown
+      # Phase ${ARGUMENTS} Code Review
+
+      **Reviewed**: {ISO date}
+      **Findings**: {count BLOCKER} BLOCKER, {count MAJOR} MAJOR, {count MINOR} MINOR
+
+      ## Summary
+
+      {2-3 sentences on the overall quality + highest-priority issues}
+
+      ## BLOCKER Findings
+
+      {finding blocks, or "None"}
+
+      ## MAJOR Findings
+
+      {finding blocks, or "None"}
+
+      ## MINOR Findings
+
+      {finding blocks, or "None"}
+
+      ## Recommendation
+
+      {"Block merge until BLOCKERs resolved" / "Address MAJORs before merge" / "Merge-ready, MINOR items can be follow-up"}
+      ```
+
+      ## Step 4: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: code review for phase ${ARGUMENTS}"
+      ```
+
+      ## Step 5: Output
+
+      ```
+      ## Code Review Complete — Phase ${ARGUMENTS}
+
+      **File**: {path}
+      **Findings**: {BLOCKER} BLOCKER / {MAJOR} MAJOR / {MINOR} MINOR
+      **Verdict**: {block-merge / address-first / merge-ready}
+
+      To fix: review findings in {path} and update the code, then re-run gsd-verify.
+      ```

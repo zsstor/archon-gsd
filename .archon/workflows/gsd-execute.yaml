@@ -1,0 +1,391 @@
+name: gsd-execute
+description: |
+  Use when: PLAN.md exists — execute each task with validation + atomic commits.
+  Maps to GSD-1's /gsd-execute-phase (wave-based parallelization, per-task commits,
+  disk-based progress tracking).
+  Triggers: "execute phase 01", "gsd execute NN", "run phase NN".
+  NOT for: Planning (use gsd-plan first).
+  NOT for: UAT / verification (use gsd-verify after — atomic pass/fail gate).
+
+  Autonomous task-by-task execution — Window 2 work:
+  1. SETUP    — read PLAN.md, install deps, capture git state, count tasks
+  2. IMPLEMENT (Ralph loop) — fresh context each iteration, one task per pass
+  3. REPORT   — final summary table + handoff to gsd-verify
+
+  Input: Phase number. Reads {NN}-PLAN.md and {NN}-CONTEXT.md.
+
+provider: claude
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: SETUP — Load plan, install deps, init progress tracking
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: setup
+    depends_on: []
+    bash: |
+      set -e
+
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      if [ -z "$PHASE_DIR" ]; then
+        echo "ERROR: no phase directory matching '${ARGUMENTS}-*' under .planning/milestones/*-phases/"
+        exit 1
+      fi
+
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      CONTEXT_FILE="${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+
+      if [ ! -f "$PLAN_FILE" ]; then
+        echo "ERROR: plan file not found: $PLAN_FILE"
+        echo "Run: archon workflow run gsd-plan ${ARGUMENTS}"
+        exit 1
+      fi
+
+      # Install deps (best-effort, skip if already installed or package manager not found)
+      if [ -f "bun.lock" ] || [ -f "bun.lockb" ]; then
+        bun install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "uv.lock" ]; then
+        uv sync 2>&1 | tail -3 || true
+      elif [ -f "poetry.lock" ]; then
+        poetry install --no-interaction 2>&1 | tail -3 || true
+      elif [ -f "package-lock.json" ]; then
+        npm ci 2>&1 | tail -3 || true
+      elif [ -f "yarn.lock" ]; then
+        yarn install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "pnpm-lock.yaml" ]; then
+        pnpm install --frozen-lockfile 2>&1 | tail -3 || true
+      elif [ -f "Gemfile.lock" ]; then
+        bundle install 2>&1 | tail -3 || true
+      fi
+
+      # Progress tracking lives in the phase dir (committed, so gsd-verify can read it)
+      PROGRESS_FILE="${PHASE_DIR}progress.txt"
+      if [ ! -f "$PROGRESS_FILE" ]; then
+        echo "# Phase ${ARGUMENTS} execution progress" > "$PROGRESS_FILE"
+        echo "# Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$PROGRESS_FILE"
+        echo "" >> "$PROGRESS_FILE"
+      fi
+
+      echo "PHASE_NUMBER=${ARGUMENTS}"
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PLAN_FILE=$PLAN_FILE"
+      echo "CONTEXT_FILE=$CONTEXT_FILE"
+      echo "PROGRESS_FILE=$PROGRESS_FILE"
+      echo "BRANCH=$(git branch --show-current)"
+      echo "BASE_COMMIT=$(git rev-parse HEAD)"
+
+      TASK_COUNT=$(grep -c "^### Task [0-9]" "$PLAN_FILE" || true)
+      echo "TASK_COUNT=${TASK_COUNT:-0}"
+
+      echo "=== PLAN_START ==="
+      cat "$PLAN_FILE"
+      echo ""
+      echo "=== PLAN_END ==="
+
+      echo "=== CONTEXT_START ==="
+      cat "$CONTEXT_FILE"
+      echo ""
+      echo "=== CONTEXT_END ==="
+
+      echo "=== PROGRESS_START ==="
+      cat "$PROGRESS_FILE"
+      echo "=== PROGRESS_END ==="
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: IMPLEMENT — Ralph loop, fresh context, one task per pass
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: implement
+    depends_on: [setup]
+    idle_timeout: 900000
+    model: sonnet
+    fallbackModel: claude-opus-4-7
+    loop:
+      prompt: |
+        # GSD Execute — Task-by-Task Implementation Loop
+
+        You are an autonomous coding agent in a FRESH session — no memory of previous
+        iterations. Read plan + progress from disk, implement ONE task, validate, commit,
+        update progress, exit.
+
+        **Golden rule**: If validation fails, fix before committing. Never commit broken code.
+
+        ---
+
+        ## Phase 0 — Load Context
+
+        The setup node produced this context:
+
+        $setup.output
+
+        **Your argument**: $ARGUMENTS
+
+        ---
+
+        ### 0.1 Parse paths
+
+        Extract these lines from context above:
+        - `PHASE_DIR=...`
+        - `PLAN_FILE=...`
+        - `CONTEXT_FILE=...`
+        - `PROGRESS_FILE=...`
+
+        ### 0.2 Re-read from disk (source of truth)
+
+        The context snapshot above is stale once previous iterations have run.
+        **Re-read from disk every iteration:**
+
+        ```bash
+        cat "$PLAN_FILE"
+        cat "$CONTEXT_FILE"
+        cat "$PROGRESS_FILE"
+        ```
+
+        Also read `CLAUDE.md` for project conventions.
+
+        ### 0.3 Check git state
+
+        ```bash
+        git log --oneline -10
+        git status --short
+        ```
+
+        Any uncommitted changes from a previous iteration's partial work? If so, decide:
+        are they coherent with the task you're about to pick? If not, stash and note in
+        progress.
+
+        ---
+
+        ## Phase 1 — Select next task
+
+        Read the plan's `## Tasks` section. Each task is `### Task N: ...`.
+
+        Cross-reference with the progress file to see which tasks are COMPLETED.
+
+        **Rules for selection**:
+        - If a wave has incomplete tasks, work only in that wave.
+        - Within a wave, pick the lowest-numbered incomplete task whose `Depends on` is
+          satisfied.
+        - If ALL tasks are complete → skip to Phase 5 (Completion).
+
+        **Announce selection**:
+
+        ```
+        -- Task Selected ------------------------------------------------
+        Task: {N} — {title}
+        Action: {CREATE / UPDATE}
+        File: {primary file}
+        Wave: {W}
+        -----------------------------------------------------------------
+        ```
+
+        ---
+
+        ## Phase 2 — Model routing (selective escalation)
+
+        Most tasks run fine with Sonnet. For specific task shapes, escalate to Opus for
+        this iteration by using extra effort + thinking:
+
+        Escalate when any of these is true for the selected task:
+        - Task description contains "architecture", "design", "invariant", "trade-off"
+        - Task touches auth, crypto, payments, or data-migration
+        - Task is marked `Risk: HIGH` in the plan
+        - Task count ≤ 3 remaining (nearing completion — get the tricky ones right)
+
+        If escalating, note it: `Model: opus (escalated: {reason})`.
+
+        ---
+
+        ## Phase 3 — Implement the task
+
+        1. Read the file you're about to change (if it exists).
+        2. Read the pattern file referenced in the task.
+        3. Make the change. Follow the task's `Details:` and `Pattern:` guidance
+           exactly. If the guidance is wrong (plan drift, file moved, etc.), STOP —
+           do not improvise. Write the deviation to progress tracking and move to next
+           task. The verify phase will flag unimplemented tasks.
+        4. Type-check after each file, incremental: `{type-check command from plan}`.
+
+        ---
+
+        ## Phase 4 — Validate the task
+
+        Run the task's `Validate:` command. If the plan listed none, run the phase-wide
+        validation commands from the PLAN.md `## Validation Commands` section.
+
+        **Failure handling** (up to 3 attempts):
+        - Attempt 1: re-read error, fix obvious issues (typos, imports, types), re-run.
+        - Attempt 2: re-read the pattern file and the task details, re-check for
+          misunderstanding, re-run.
+        - Attempt 3: if still failing, commit is NOT allowed. Write to progress:
+          ```
+          ## Task {N}: {title} — FAILED
+          Date: {ISO}
+          Attempts: 3
+          Last error: {concise summary}
+          Files with WIP changes: {list, stashed}
+          ---
+          ```
+          Stash changes: `git stash push -m "WIP task {N} failed validation"`.
+          End iteration. The next iteration picks a different task.
+
+        ---
+
+        ## Phase 5 — Commit
+
+        ```bash
+        git add -A
+        git diff --cached --stat
+        git commit -m "$(cat <<'EOF'
+        {type}({scope}): {task title, imperative}
+
+        Phase ${ARGUMENTS} Task {N}: {one-line description}
+
+        {optional body: non-obvious reason for a non-obvious choice}
+        EOF
+        )"
+        ```
+
+        Conform to the repo's commit message style — check `git log --oneline -20` for
+        style cues.
+
+        ---
+
+        ## Phase 6 — Update progress tracking
+
+        Append to `$PROGRESS_FILE`:
+
+        ```
+        ## Task {N}: {title} — COMPLETED
+        Date: {ISO UTC}
+        Files: {list}
+        Commit: {short hash}
+        Validation: PASS
+        ---
+        ```
+
+        Commit the progress update separately:
+
+        ```bash
+        git add "$PROGRESS_FILE"
+        git commit -m "chore(planning): phase ${ARGUMENTS} task {N} complete"
+        ```
+
+        ---
+
+        ## Phase 7 — Decide: continue or complete
+
+        Re-read the plan and progress:
+
+        ```bash
+        grep -c "^### Task [0-9]" "$PLAN_FILE"
+        grep -c "^## Task.*— COMPLETED" "$PROGRESS_FILE"
+        ```
+
+        **If complete == planned**: all tasks done. Run the phase-wide validation:
+
+        ```bash
+        # Run ALL validation commands from PLAN.md "Validation Commands"
+        ```
+
+        If it passes:
+
+        ```bash
+        git push -u origin HEAD 2>&1 || true
+        ```
+
+        Signal: `<promise>COMPLETE</promise>`
+
+        **If complete < planned**: end iteration normally. The loop engine starts a
+        fresh iteration. Do NOT emit the completion signal.
+
+        ---
+
+        ## CRITICAL — completion signal rules
+
+        - Only emit `<promise>COMPLETE</promise>` when EVERY planned task has status
+          COMPLETED or FAILED in progress, AND the phase-wide validation passed.
+        - If any task is FAILED and un-retried, do NOT emit. End iteration; next pass
+          retries.
+        - Do NOT emit just because you finished your current task.
+      until: COMPLETE
+      max_iterations: 25
+      fresh_context: true
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: REPORT — Final summary + handoff
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: report
+    model: sonnet
+    depends_on: [implement]
+    context: fresh
+    prompt: |
+      # GSD Execute — Report
+
+      The implementation loop has completed. Generate a final summary.
+
+      **Phase**: $ARGUMENTS
+      **Implementation loop output**: $implement.output
+
+      ---
+
+      ## Step 1: Load artifacts
+
+      ```bash
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PROGRESS_FILE="${PHASE_DIR}progress.txt"
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+
+      cat "$PROGRESS_FILE"
+      ```
+
+      ## Step 2: Compute stats
+
+      ```bash
+      PLANNED=$(grep -c "^### Task [0-9]" "$PLAN_FILE")
+      COMPLETED=$(grep -c "^## Task.*— COMPLETED" "$PROGRESS_FILE")
+      FAILED=$(grep -c "^## Task.*— FAILED" "$PROGRESS_FILE")
+      ```
+
+      ## Step 3: Git summary
+
+      ```bash
+      BASE_COMMIT={extract from setup output}
+      git log --oneline "${BASE_COMMIT}..HEAD"
+      git diff --stat "${BASE_COMMIT}..HEAD"
+      ```
+
+      ## Step 4: Output
+
+      ```
+      ===============================================================
+      PHASE ${ARGUMENTS} EXECUTION REPORT
+      ===============================================================
+
+      Planned: {PLANNED}
+      Completed: {COMPLETED}
+      Failed: {FAILED}
+      Skipped: {PLANNED - COMPLETED - FAILED}
+
+      -- Completed Tasks ----------------------------------------------
+      {list from progress, one line per task}
+
+      -- Failed Tasks -------------------------------------------------
+      {list, empty if FAILED == 0}
+
+      -- Commits ------------------------------------------------------
+      {git log output}
+
+      -- Files Changed ------------------------------------------------
+      {git diff --stat output}
+
+      -- Next Step ----------------------------------------------------
+      {If FAILED == 0:}
+        archon workflow run gsd-verify ${ARGUMENTS}
+
+      {If FAILED > 0:}
+        Re-run: archon workflow run gsd-execute ${ARGUMENTS}
+        Or resolve manually then: archon workflow run gsd-verify ${ARGUMENTS}
+      ===============================================================
+      ```

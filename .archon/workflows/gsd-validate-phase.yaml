@@ -1,0 +1,168 @@
+name: gsd-validate-phase
+description: |
+  Use when: A phase shipped but you suspect test coverage is uneven — retroactively
+  audit and fill Nyquist validation gaps (each significant code path has a test).
+  Maps to GSD's /gsd-validate-phase.
+  Triggers: "validate phase 02", "gsd validate NN", "nyquist phase NN".
+  NOT for: Full test-suite audit (this is scoped to the phase's changed code).
+
+  Autonomous Nyquist coverage audit:
+  1. LOAD   — plan + diff
+  2. MAP    — each PLAN.md success criterion → implementing function → exercising test
+  3. GAPS   — flag criteria without tests
+  4. FILL   — generate tests for the gaps (new test code, commit separately)
+  5. WRITE  — VALIDATION.md with before/after coverage
+
+  Input: Phase number.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+
+      echo "=== CRITERIA ==="
+      awk '/^## Success Criteria/,/^## /' "$PLAN_FILE" | head -50
+
+      echo "=== CHANGED_SRC ==="
+      git diff --name-only "${PLAN_COMMIT}..HEAD" | grep -vE '(test|spec|\.md$|\.planning/)' | head -30
+
+      echo "=== CHANGED_TESTS ==="
+      git diff --name-only "${PLAN_COMMIT}..HEAD" | grep -E '(test|spec)' | head -30
+
+      echo "=== PLAN ==="
+      cat "$PLAN_FILE"
+
+  - id: map
+    model: sonnet
+    depends_on: [load]
+    context: fresh
+    prompt: |
+      # GSD Validate — Map Criteria to Tests
+
+      **Phase**: $ARGUMENTS
+      **Load**: $load.output
+
+      ---
+
+      For each success criterion:
+      1. Find the function/class that implements it (grep + read)
+      2. Find the test that exercises it (grep test files)
+      3. If a test exists, READ the test — does it actually assert the behavior, or
+         just instantiate the class?
+
+      Also for each significant changed source file:
+      1. Is there a corresponding test file? (by convention)
+      2. Do new/modified functions have test coverage?
+
+      Output:
+
+      ```
+      ## Coverage Map
+
+      ### Criteria
+      | Criterion | Impl | Test | Strength |
+      |-----------|------|------|----------|
+      | {criterion} | `file:line` | `file:line` | strong / weak / missing |
+
+      ### Changed Files
+      | File | Test File | New Functions | Test Coverage |
+      |------|-----------|---------------|---------------|
+      | `{path}` | `{path}` | {count} | {count tested} / {count total} |
+
+      ## Gaps
+      - {criterion or function}: {why it's under-tested}
+      - ...
+      ```
+
+  - id: fill
+    model: sonnet
+    depends_on: [map]
+    when: "$map.output != null"
+    prompt: |
+      # GSD Validate — Fill Gaps
+
+      **Phase**: $ARGUMENTS
+      **Gap map**: $map.output
+
+      ---
+
+      For each gap in the map:
+      1. Decide whether the gap is worth filling (trivial code may not need a test).
+      2. For each gap worth filling: write a test following the existing test file's
+         pattern.
+      3. Run the new test to confirm it passes against current code.
+      4. Commit the new test atomically:
+
+      ```bash
+      git add {test files}
+      git commit -m "test: fill coverage gap for phase ${ARGUMENTS} — {criterion/function}"
+      ```
+
+      ---
+
+      Track what you filled vs. what you deliberately skipped. Output:
+
+      ```
+      ## Gaps Filled
+
+      - {file:line test name} — for {criterion/function}
+      - ...
+
+      ## Gaps Skipped (with reason)
+
+      - {criterion/function} — {reason, e.g., "trivial getter, no logic"}
+      ```
+
+      If there are no gaps worth filling, output `NO_FILLS_NEEDED`.
+
+  - id: write
+    model: sonnet
+    depends_on: [map, fill]
+    trigger_rule: any_success
+    prompt: |
+      # GSD Validate — Write VALIDATION.md
+
+      **Phase**: $ARGUMENTS
+      **Map**: $map.output
+      **Fill**: $fill.output
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-VALIDATION.md`
+
+      ```markdown
+      # Phase ${ARGUMENTS} Validation Audit
+
+      **Audited**: {ISO date}
+
+      ## Before
+
+      {paste the coverage map from $map.output}
+
+      ## Gaps Addressed
+
+      {from $fill.output}
+
+      ## After
+
+      Re-run the coverage map after fills:
+      | Criterion | Test | Strength |
+      |-----------|------|----------|
+      | {criterion} | `file:line` | strong |
+
+      ## Recommendation
+
+      {"All criteria covered" / "Remaining gaps are by design (documented above)" / "Critical gaps remain"}
+      ```
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: validation audit for phase ${ARGUMENTS}"
+      ```
+
+      Output the file path + coverage summary.

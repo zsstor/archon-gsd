@@ -1,0 +1,368 @@
+name: gsd-verify
+description: |
+  Use when: gsd-execute has completed — verify the phase achieved its goal (not just that
+  tasks completed). Maps to GSD's /gsd-verify-work (goal-backward verification).
+  Triggers: "verify phase 01", "gsd verify NN", "check NN shipped".
+  NOT for: Interactive UAT with the user (this is autonomous; for conversational UAT run
+  the verify-work skill in Claude Code directly).
+  NOT for: Security/UI specific audits (use gsd-code-review / gsd-ui-review / gsd-secure-phase).
+
+  Autonomous verification — Window 2 work:
+  1. LOAD     — read plan, decisions, context, progress, git diff
+  2. SUITE    — run full validation suite (types, lint, tests, build)
+  3. AUDIT    — map each success criterion to implementing code/tests
+  4. E2E      — identify user-flow regressions using code-level reasoning
+  5. WRITE    — produce {NN}-VERIFICATION.md with pass/fail per criterion
+  6. GATE     — structured PASS / FAIL / PARTIAL verdict
+
+  Input: Phase number. Reads all phase artifacts + full git diff since phase started.
+
+provider: claude
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: LOAD — Everything committed for the phase
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: load
+    bash: |
+      set -e
+
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      if [ -z "$PHASE_DIR" ]; then
+        echo "ERROR: no phase directory for ${ARGUMENTS}"
+        exit 1
+      fi
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PHASE_NUMBER=${ARGUMENTS}"
+
+      # Find the commit where the plan was committed — that's the phase's base
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+      if [ -z "$PLAN_COMMIT" ]; then
+        echo "ERROR: could not find commit introducing $PLAN_FILE"
+        exit 1
+      fi
+      echo "PLAN_COMMIT=$PLAN_COMMIT"
+
+      # The phase's work is everything from PLAN_COMMIT to HEAD, excluding the plan commit itself
+      echo "=== COMMITS ==="
+      git log --oneline "${PLAN_COMMIT}..HEAD"
+
+      echo "=== FILES_CHANGED ==="
+      git diff --stat "${PLAN_COMMIT}..HEAD"
+
+      echo "=== DIFF_HEAD ==="
+      git diff "${PLAN_COMMIT}..HEAD" | head -500
+      echo "=== (diff truncated at 500 lines — verify node will re-read specific sections) ==="
+
+      echo "=== PLAN ==="
+      cat "$PLAN_FILE"
+      echo ""
+      echo "=== CONTEXT ==="
+      cat "${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
+      echo ""
+      echo "=== DECISIONS ==="
+      cat "${PHASE_DIR}${ARGUMENTS}-DECISIONS.md"
+      echo ""
+      echo "=== PROGRESS ==="
+      cat "${PHASE_DIR}progress.txt"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: SUITE — Run full validation suite
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: suite
+    depends_on: [load]
+    bash: |
+      set +e  # continue even if steps fail — we capture exit codes
+
+      mkdir -p $ARTIFACTS_DIR
+
+      echo "=== TYPE_CHECK ==="
+      if [ -f "bun.lock" ] || [ -f "bun.lockb" ] && grep -q '"type-check"' package.json 2>/dev/null; then
+        bun run type-check > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      elif [ -f "tsconfig.json" ]; then
+        npx tsc --noEmit > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      elif [ -f "pyproject.toml" ] && command -v mypy &>/dev/null; then
+        mypy . > "$ARTIFACTS_DIR/type-check.log" 2>&1
+        echo "TYPE_CHECK_EXIT=$?"
+      else
+        echo "TYPE_CHECK_EXIT=skip"
+      fi
+      tail -20 "$ARTIFACTS_DIR/type-check.log" 2>/dev/null || true
+
+      echo "=== LINT ==="
+      if grep -q '"lint"' package.json 2>/dev/null; then
+        (bun run lint 2>&1 || npm run lint 2>&1) > "$ARTIFACTS_DIR/lint.log" 2>&1
+        echo "LINT_EXIT=$?"
+      elif [ -f "pyproject.toml" ] && command -v ruff &>/dev/null; then
+        ruff check . > "$ARTIFACTS_DIR/lint.log" 2>&1
+        echo "LINT_EXIT=$?"
+      else
+        echo "LINT_EXIT=skip"
+      fi
+      tail -20 "$ARTIFACTS_DIR/lint.log" 2>/dev/null || true
+
+      echo "=== TESTS ==="
+      if grep -q '"test"' package.json 2>/dev/null; then
+        (bun run test 2>&1 || npm test 2>&1) > "$ARTIFACTS_DIR/test.log" 2>&1
+        echo "TEST_EXIT=$?"
+      elif [ -f "pyproject.toml" ] && command -v pytest &>/dev/null; then
+        pytest > "$ARTIFACTS_DIR/test.log" 2>&1
+        echo "TEST_EXIT=$?"
+      else
+        echo "TEST_EXIT=skip"
+      fi
+      tail -40 "$ARTIFACTS_DIR/test.log" 2>/dev/null || true
+
+      echo "=== BUILD ==="
+      if grep -q '"build"' package.json 2>/dev/null; then
+        (bun run build 2>&1 || npm run build 2>&1) > "$ARTIFACTS_DIR/build.log" 2>&1
+        echo "BUILD_EXIT=$?"
+      else
+        echo "BUILD_EXIT=skip"
+      fi
+      tail -20 "$ARTIFACTS_DIR/build.log" 2>/dev/null || true
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: AUDIT — Map each success criterion to implementing code
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: audit
+    model: sonnet
+    depends_on: [load, suite]
+    context: fresh
+    prompt: |
+      # GSD Verify — Goal-Backward Audit
+
+      You are verifying that the phase achieved its goal, not just that tasks completed.
+      A phase can have all tasks "COMPLETED" and still miss the goal if the plan was wrong
+      or if drift happened during execution.
+
+      **Phase**: $ARGUMENTS
+      **Load output (plan, decisions, progress, diff, commits)**: $load.output
+      **Suite exit codes + tail of logs**: $suite.output
+
+      ---
+
+      ## Step 1: Extract success criteria
+
+      From the plan (in load output), find the `## Success Criteria` checklist. Each
+      item is a criterion you must verify.
+
+      ## Step 2: For each criterion, find implementing evidence
+
+      Don't trust "Task N is COMPLETED". Verify by finding the actual code:
+
+      - **Is there a function/class that implements this?** Grep for the keyword.
+        Cite file:line.
+      - **Is there a test that would fail if this were broken?** Read the test file
+        content — don't just check the file exists. The test must actually assert the
+        criterion.
+      - **Did the suite node confirm tests pass?** Check `$suite.output` for TEST_EXIT=0.
+
+      Classify each criterion:
+      - **COVERED**: implemented + tested + tests pass
+      - **PARTIAL**: implemented but tests missing/weak, OR tests exist but don't run
+      - **MISSING**: no implementation evidence found
+
+      ## Step 3: Regression check
+
+      For files touched by this phase, check whether neighboring behavior was affected:
+
+      ```bash
+      # For each changed file, find its test file and confirm ALL tests pass, not just new ones
+      ```
+
+      If tests for EXISTING (pre-phase) behavior are failing now, that's a regression.
+      The suite node's `TEST_EXIT` tells you overall, but you need to check whether any
+      existing tests were deleted (a common regression-hiding tactic):
+
+      ```bash
+      git diff $PLAN_COMMIT..HEAD -- '**/*.test.*' '**/*.spec.*' 'tests/**/*.py' \
+        | grep -E '^-[^-]' | head -40
+      ```
+
+      Deleted assertions or deleted test cases are a RED FLAG. Verify each was
+      intentional (mentioned in plan/decisions) and not silently removed.
+
+      ## Step 4: Deviation check
+
+      Compare the plan's `## Files` table against the actual `git diff --stat`:
+      - Files in plan but not changed → incomplete
+      - Files changed but not in plan → scope creep (could be legitimate, flag for review)
+      - Net line counts massively off (>2x the estimate) → potentially missed scope
+
+      ## Step 5: Threat mitigation check (if applicable)
+
+      If the plan had a `## Threat Model` section, for each threat:
+      - Find the mitigation in code (cite file:line)
+      - Find the test that exercises the mitigation (cite file:line)
+      - If either is missing → flag
+
+      ## Step 6: Output
+
+      Produce a structured audit. Per criterion:
+
+      ```
+      ### Criterion: "{criterion text}"
+      **Status**: COVERED / PARTIAL / MISSING
+      **Implementation**: {file:line, function name}
+      **Test**: {file:line, test name} — {PASS/FAIL/MISSING}
+      **Notes**: {any caveat}
+      ```
+
+      Plus a deviation report:
+
+      ```
+      ### Plan vs. Reality
+      - Files in plan but not changed: {list}
+      - Files changed but not in plan: {list}
+      - Estimated ~{N} lines, actual {M} lines (ratio {X})
+      ```
+
+      Plus a regression report:
+
+      ```
+      ### Regressions
+      - Deleted tests: {list, or "none"}
+      - Failing existing tests: {list from $suite.output, or "none"}
+      ```
+
+      Plus a threat-mitigation report (if threat model exists):
+
+      ```
+      ### Threat Model Coverage
+      - {threat} — mitigation at {file:line}, test at {file:line} — {COVERED/MISSING}
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: WRITE + GATE — VERIFICATION.md + verdict
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: write
+    model: sonnet
+    depends_on: [audit]
+    output_format:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum: [PASS, PARTIAL, FAIL]
+        criteria_covered:
+          type: integer
+        criteria_partial:
+          type: integer
+        criteria_missing:
+          type: integer
+        suite_passing:
+          type: boolean
+        regressions_detected:
+          type: boolean
+        summary:
+          type: string
+      required: [verdict, criteria_covered, criteria_partial, criteria_missing, suite_passing, regressions_detected, summary]
+    prompt: |
+      # GSD Verify — Write VERIFICATION.md + emit verdict
+
+      **Phase**: $ARGUMENTS
+      **Audit**: $audit.output
+      **Suite**: $suite.output
+
+      ---
+
+      ## Step 1: Write VERIFICATION.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-VERIFICATION.md`
+
+      ```markdown
+      # Phase {NN} Verification
+
+      **Phase**: {NN} — {slug}
+      **Verified**: {ISO UTC}
+      **Verdict**: {PASS / PARTIAL / FAIL}
+
+      ## Summary
+
+      {2-4 sentences: did the phase achieve its goal, what was covered, what's incomplete}
+
+      ## Success Criteria
+
+      | # | Criterion | Status | Implementation | Test | Notes |
+      |---|-----------|--------|----------------|------|-------|
+      | 1 | {criterion} | COVERED | `file:line` | `file:line` (PASS) | |
+      | 2 | {criterion} | PARTIAL | `file:line` | MISSING | No test yet |
+      | ... |
+
+      ## Validation Suite Results
+
+      | Check | Result |
+      |-------|--------|
+      | Type-check | {PASS/FAIL/skip} |
+      | Lint | {PASS/FAIL/skip} |
+      | Tests | {PASS/FAIL/skip} — {N} passed, {M} failed |
+      | Build | {PASS/FAIL/skip} |
+
+      {If any FAIL: quote the relevant tail of the log}
+
+      ## Plan vs. Reality
+
+      ### Files Changed
+      - **Planned** ({N}): {list}
+      - **Actual** ({M}): {list}
+      - **In plan but not changed**: {list or "none"}
+      - **Changed but not in plan**: {list or "none, within expected scope"}
+
+      ## Regression Report
+
+      - Deleted tests: {list or "none"}
+      - Existing tests now failing: {list or "none"}
+      - Behavior shifts in unrelated code: {list or "none"}
+
+      ## Threat Mitigation Coverage
+
+      {if threat model exists}
+      | Threat | Mitigation | Test | Status |
+      |--------|------------|------|--------|
+      | {threat} | `file:line` | `file:line` | COVERED/MISSING |
+
+      ## Outstanding Items
+
+      {things that need follow-up — new issues filed, deferred items, known gaps}
+
+      ## Recommendation
+
+      {"Ready to merge" / "Fix {list} before merge" / "Re-plan — goal not achieved"}
+      ```
+
+      ## Step 2: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "$(cat <<'EOF'
+      chore(planning): phase ${ARGUMENTS} verification — {VERDICT}
+
+      Criteria: {N} covered, {M} partial, {K} missing.
+      Suite: {type-check, lint, tests, build results}.
+      {One-line summary}.
+      EOF
+      )"
+
+      git push -u origin HEAD 2>&1 || true
+      ```
+
+      ## Step 3: Determine verdict for structured output
+
+      - **PASS**: all criteria COVERED + suite passing + no regressions
+      - **PARTIAL**: all criteria COVERED or PARTIAL + suite passing + no regressions,
+        OR any criterion MISSING but suite passes and phase has delivered core value
+      - **FAIL**: criteria MISSING that are core to the goal, OR suite failing, OR
+        regressions detected
+
+      ## Step 4: Emit
+
+      Fill the structured output schema. Provide a 2-3 sentence `summary`.

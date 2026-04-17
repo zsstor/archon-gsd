@@ -1,0 +1,146 @@
+name: gsd-secure-phase
+description: |
+  Use when: A security-sensitive phase shipped — verify each threat from the plan's
+  threat model has a concrete code-level mitigation and a test that exercises it.
+  Maps to GSD's /gsd-secure-phase.
+  Triggers: "secure phase 02", "gsd secure NN", "security check NN".
+  NOT for: Full security audit of the whole app (out of scope — use a dedicated tool).
+
+  Autonomous threat-mitigation verification:
+  1. LOAD   — threat model from PLAN.md + phase diff
+  2. MAP    — for each threat, locate mitigation code + mitigation test
+  3. WRITE  — SECURITY.md with verdict per threat
+  4. GATE   — structured PASS / FAIL
+
+  Input: Phase number. Requires PLAN.md to have a `## Threat Model` section.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PLAN_FILE=$PLAN_FILE"
+
+      if ! grep -q "^## Threat Model" "$PLAN_FILE"; then
+        echo "ERROR: plan has no ## Threat Model section — is this phase security-sensitive?"
+        echo "If yes, update the plan and re-run this workflow."
+        exit 1
+      fi
+
+      echo "=== THREAT_MODEL ==="
+      awk '/^## Threat Model/,/^## /' "$PLAN_FILE" | head -200
+
+      echo "=== FULL_PLAN ==="
+      cat "$PLAN_FILE"
+
+      echo "=== DIFF ==="
+      git diff "${PLAN_COMMIT}..HEAD"
+
+  - id: map
+    model: opus
+    depends_on: [load]
+    context: fresh
+    output_format:
+      type: object
+      properties:
+        threats:
+          type: array
+          items:
+            type: object
+            properties:
+              threat: {type: string}
+              mitigation_expected: {type: string}
+              mitigation_code: {type: string}
+              mitigation_test: {type: string}
+              status: {type: string, enum: [COVERED, PARTIAL, MISSING]}
+              notes: {type: string}
+        verdict: {type: string, enum: [PASS, PARTIAL, FAIL]}
+      required: [threats, verdict]
+    prompt: |
+      # GSD Secure Phase — Map Threats to Code + Tests
+
+      **Phase**: $ARGUMENTS
+      **Load output**: $load.output
+
+      ---
+
+      For each threat in the Threat Model section, independently locate:
+
+      1. **Mitigation in code** — grep the phase's diff for the specific defense
+         mentioned in the plan. Cite file:line. If the defense exists but wasn't
+         mentioned in the plan, cite it anyway and note the discrepancy. If no code
+         implements the defense, mark MISSING.
+
+      2. **Test that exercises the mitigation** — find a test that would fail if the
+         mitigation were removed. The test must ATTEMPT the attack (or a safe
+         simulation) and assert that it's blocked. Cite file:line. If no such test
+         exists, mark the test side as MISSING even if the code is there (defense in
+         code without a guard test decays silently over time).
+
+      3. **Classify**:
+         - COVERED: both code + test present and pass
+         - PARTIAL: code present + test missing, OR code+test present but test is weak
+           (doesn't actually attempt the attack)
+         - MISSING: no code
+
+      ## Verdict rules
+
+      - Any MISSING threat → FAIL
+      - Any PARTIAL threat → PARTIAL
+      - All COVERED → PASS
+
+      Emit the structured output.
+
+  - id: write
+    model: sonnet
+    depends_on: [map]
+    prompt: |
+      # GSD Secure Phase — Write SECURITY.md
+
+      **Phase**: $ARGUMENTS
+      **Map output**: $map.output
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-SECURITY.md`
+
+      ```markdown
+      # Phase ${ARGUMENTS} Security Verification
+
+      **Verified**: {ISO date}
+      **Verdict**: {verdict}
+
+      ## Threat Coverage
+
+      | # | Threat | Mitigation Code | Mitigation Test | Status |
+      |---|--------|-----------------|-----------------|--------|
+      | 1 | {threat} | `{file:line}` | `{file:line}` | COVERED |
+      | 2 | {threat} | MISSING | — | MISSING |
+
+      ## Detail
+
+      ### Threat 1: {name}
+      **Expected mitigation**: {from plan}
+      **Actual mitigation**: `{file:line}`
+      **Test**: `{file:line}` — {what it asserts}
+      **Status**: {COVERED/PARTIAL/MISSING}
+      **Notes**: {any caveat}
+
+      ### ...
+
+      ## Recommendation
+
+      {"Security gates clear" / "Address MISSING threats before merge" / "Add tests for PARTIAL threats"}
+      ```
+
+      Commit:
+      ```bash
+      git add .planning/
+      git commit -m "docs: security verification for phase ${ARGUMENTS} — {verdict}"
+      ```
+
+      Output the file path + verdict.

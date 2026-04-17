@@ -1,0 +1,89 @@
+name: gsd-cleanup
+description: |
+  Use when: .planning/ has accumulated old phase directories from archived milestones
+  that are cluttering discovery. Maps to GSD's /gsd-cleanup.
+  Triggers: "gsd cleanup", "archive old phases", "planning cleanup".
+  NOT for: Archiving a full milestone (use gsd-complete-milestone).
+
+  Deterministic cleanup: moves archived-milestone phase dirs deeper into an archive
+  tree, leaves active milestone untouched. No AI needed — this is pure git+bash.
+
+  Input: none (auto-detects archived milestones).
+
+provider: claude
+
+nodes:
+  - id: scan
+    bash: |
+      set +e
+
+      echo "=== CURRENT_MILESTONE ==="
+      if [ -f ".planning/MILESTONE.md" ]; then
+        grep -E '^\*\*.*\*\*' .planning/MILESTONE.md | head -5
+      fi
+
+      echo "=== ARCHIVE_CANDIDATES ==="
+      # Phases under archive/<version>/ that could be flattened further, or
+      # .planning/milestones/*-phases/ directories that correspond to archived milestones
+      CURRENT=$(grep -oE 'v[0-9]+\.[0-9]+' .planning/MILESTONE.md 2>/dev/null | head -1)
+      echo "CURRENT_VERSION=${CURRENT:-none}"
+
+      for dir in .planning/milestones/*-phases/; do
+        if [ -d "$dir" ]; then
+          VERSION=$(basename "$dir" | sed 's/-phases$//')
+          if [ -z "$CURRENT" ] || [ "$VERSION" != "$CURRENT" ]; then
+            echo "LOOSE_PHASES: $dir (milestone $VERSION)"
+          fi
+        fi
+      done
+
+  - id: classify
+    model: haiku
+    depends_on: [scan]
+    prompt: |
+      # GSD Cleanup — Classify
+
+      **Scan**: $scan.output
+
+      From the scan output, list which phase directories are safe to archive:
+      - They belong to milestones that are NOT the current one
+      - They are not already under `.planning/milestones/archive/`
+      - The corresponding milestone has a tag (check `git tag -l "milestone-*"`)
+
+      Output a list of `mv src dst` commands, one per line. Do NOT execute — the
+      `apply` node runs them.
+
+      Example:
+      ```
+      mv .planning/milestones/v1.0-phases   .planning/milestones/archive/v1.0/phases
+      mv .planning/milestones/v1.0-ROADMAP.md  .planning/milestones/archive/v1.0/v1.0-ROADMAP.md
+      ```
+
+      If nothing to archive, output `NOTHING_TO_ARCHIVE`.
+
+  - id: apply
+    depends_on: [classify]
+    bash: |
+      set +e
+      CLASSIFICATION='$classify.output'
+
+      if echo "$CLASSIFICATION" | grep -q "NOTHING_TO_ARCHIVE"; then
+        echo "Nothing to archive."
+        exit 0
+      fi
+
+      # Parse mv lines and execute
+      echo "$CLASSIFICATION" | grep -E '^mv ' | while read -r line; do
+        DST=$(echo "$line" | awk '{print $NF}')
+        DST_DIR=$(dirname "$DST")
+        mkdir -p "$DST_DIR"
+        eval "$line"
+        echo "Moved: $line"
+      done
+
+      git add -A .planning/
+      if git diff --cached --quiet; then
+        echo "Nothing changed — no commit made"
+      else
+        git commit -m "chore(planning): cleanup — archive old phase dirs"
+      fi

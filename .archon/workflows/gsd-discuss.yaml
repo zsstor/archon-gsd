@@ -1,0 +1,395 @@
+name: gsd-discuss
+description: |
+  Use when: Research is complete, before planning — lock decisions through adaptive
+  questioning. Maps to GSD-1's /gsd-discuss-phase (the GSD-1 flow the user specifically
+  requested; GSD-2's native discuss is more script-driven).
+  Triggers: "discuss phase 02", "gsd discuss 01", "lock decisions for NN".
+  NOT for: Deciding WHAT to build (use gsd-new-milestone).
+  NOT for: Planning HOW to build (use gsd-plan — runs after this).
+
+  Adaptive Q&A workflow — Window 1 work, runs until the user says "ready":
+  1. LOAD      — read RESEARCH.md, phase slot, upstream artifacts
+  2. OPEN      — surface assumptions, ambiguities, and open decisions
+  3. ADAPT     — iterative Q&A loop, user steers depth and direction
+  4. DECISIONS — synthesize locked decisions into DECISIONS.md + CONTEXT.md
+  5. APPROVE   — user reviews and locks
+
+  Input: Phase number (e.g., "01" or "02.1"). Reads current milestone + research.
+
+provider: claude
+interactive: true
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: LOAD — Read all context before asking anything
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: load
+    model: opus
+    prompt: |
+      # GSD Discuss — Load Context
+
+      You are starting an adaptive-discussion phase. Before asking ANY questions, load
+      all the context so your questions are specific and evidence-based.
+
+      **Phase number**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Locate the phase
+
+      ```bash
+      cat .planning/MILESTONE.md
+      ```
+
+      Extract version. Then find the phase directory:
+
+      ```bash
+      ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null
+      ```
+
+      If the phase dir doesn't exist, the milestone wasn't bootstrapped — bail with a
+      clear error telling the user to run `gsd-new-milestone` first.
+
+      ## Step 2: Load phase context
+
+      Read everything in the phase dir:
+      - `{NN}-RESEARCH.md` — the research synthesis (required — bail if missing and tell
+        the user to run `gsd-research $ARGUMENTS` first)
+      - Any other files present
+
+      ## Step 3: Load upstream artifacts
+
+      For each phase this one depends on (per roadmap), read:
+      - `{upstream-NN}-PLAN.md` — what was planned
+      - `{upstream-NN}-VERIFICATION.md` — what actually shipped and how it was verified
+      - `{upstream-NN}-DECISIONS.md` — what was decided
+
+      You need these because this phase inherits those decisions.
+
+      ## Step 4: Load codebase touchpoints
+
+      Read `CLAUDE.md`, `.planning/codebase/ARCHITECTURE.md` and `.planning/codebase/CONVENTIONS.md`
+      if present. For every file the research cited at file:line, read it.
+
+      ## Step 5: Present context summary
+
+      ```
+      ## Discuss — Phase {NN} ({slug})
+
+      **Intent (from roadmap)**: {one sentence}
+      **Research recommends**: {approach from RESEARCH.md executive summary}
+
+      **Inherited decisions** (from upstream phases):
+      - {decision from upstream-NN-DECISIONS.md}
+      - {decision}
+
+      **Research-flagged open decisions**:
+      - {decision 1 — from RESEARCH.md "Open decisions for discussion"}
+      - {decision 2}
+
+      **Research-flagged contradictions**:
+      - {contradiction — from RESEARCH.md "Contradictions to resolve"}
+
+      **My read of what needs your judgment**:
+      - {decision area — why it can't be resolved by evidence alone}
+      - {decision area}
+
+      I'm ready to work through these. Where do you want to start — the flagged open
+      decisions, the contradictions, or something I missed?
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: ADAPT — Iterative Q&A loop (GSD-1 adaptive style)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: adapt
+    model: opus
+    depends_on: [load]
+    loop:
+      prompt: |
+        # GSD Discuss — Adaptive Q&A
+
+        You are in a sustained adaptive-questioning loop. The user's latest response
+        determines what you ask next — no fixed script.
+
+        **Phase**: $ARGUMENTS
+        **Loaded context**: $load.output
+        **User's latest input**: $LOOP_USER_INPUT
+
+        ---
+
+        ## Core principle — GSD-1 adaptive style
+
+        This is NOT a fixed N-round script. Each turn you:
+
+        1. **Listen** to what the user just said.
+        2. **Update** your running picture of confirmed vs open decisions.
+        3. **Judge** what the most load-bearing unresolved question is right now.
+        4. **Ask** that question — specifically, with evidence — or converge if ready.
+
+        You are allowed to ask only 1-3 questions per turn. Deep over wide. Quality
+        over quantity.
+
+        ## On every iteration, output the Running Decision Ledger
+
+        Before your question(s), output this block. The user should see convergence
+        every turn:
+
+        ```
+        ## Decision Ledger — Phase {NN}
+
+        **Locked** (confirmed by user, ready for DECISIONS.md):
+        - [x] {restatement of the decision in the user's own terms}
+        - [x] {decision}
+
+        **In progress** (discussed, not yet locked):
+        - [ ] {the open question I'm working on right now}
+        - [ ] {open question}
+
+        **Not yet touched**:
+        - [ ] {flagged open decision from RESEARCH.md, pending}
+
+        **Tensions I noticed** (to surface for user):
+        - {trade-off that needs explicit acknowledgment}
+        ```
+
+        ## What NOT to do
+
+        - Do NOT ask generic questions ("what should the API look like?").
+        - Do NOT re-ask questions already answered.
+        - Do NOT paraphrase the research without adding judgment.
+        - Do NOT propose a decision — propose options and ask the user to choose.
+        - Do NOT rush to convergence. If the user is still giving you new information,
+          the loop is still useful.
+
+        ## What TO do
+
+        - Cite evidence: "research Q3 flagged {pitfall} — does that change your preference?"
+        - Surface trade-offs crisply: "if we take approach A, we get X but give up Y. Fine?"
+        - Push back when needed: "you said {X}, but upstream phase {NN} already committed
+          to {Y}. Reconcile?"
+        - Probe assumptions: "you mentioned {thing} casually — is that a hard requirement
+          or a preference?"
+        - When the user gives a new constraint, re-evaluate options under it and say so.
+
+        ## If it's the FIRST iteration (LOOP_USER_INPUT is empty):
+
+        The user just saw your load output. Wait for their initial direction.
+        Output:
+
+        ```
+        Ready when you are. Say where you want to start — an open decision, a
+        contradiction, or something I missed.
+        ```
+
+        Do NOT emit the completion signal on the first iteration.
+
+        ## If the user explicitly approved converging:
+
+        "Ready" / "lock it in" / "let's plan" / "approved" / "write it up":
+
+        Do a final sanity pass on the Decision Ledger. If any critical items are still
+        under **In progress** or **Not yet touched**, push back:
+
+        ```
+        Before I lock this in — these are still unresolved:
+        - {item}
+        - {item}
+
+        Do you want to punt them (document as "to be decided during execute"), or resolve
+        now?
+        ```
+
+        If the user says "punt" or "good enough", THEN emit:
+
+        <promise>DECISIONS_LOCKED</promise>
+
+        ## CRITICAL — completion signal rules
+
+        - NEVER emit <promise>DECISIONS_LOCKED</promise> unless the user's LATEST message
+          explicitly approves locking in: "ready", "lock it", "approved", "write it up",
+          "proceed to plan", "let's go".
+        - Questions, corrections, new information → NO signal.
+        - "Also consider X" → incorporate X, show the updated ledger, NO signal.
+        - Uncertainty in the user's tone → ask, NO signal.
+        - The ONLY correct emission is when the user clearly means "stop discussing, I'm
+          ready for you to write DECISIONS.md."
+      until: DECISIONS_LOCKED
+      max_iterations: 30
+      interactive: true
+      gate_message: |
+        Answer, redirect, push back, or say "ready" when the Decision Ledger looks
+        complete and you're prepared to proceed to planning.
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: DECISIONS — Synthesize locked decisions to disk
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: decisions
+    model: opus
+    depends_on: [adapt]
+    context: fresh
+    prompt: |
+      # GSD Discuss — Write Decisions
+
+      The discussion is locked. Your job: write DECISIONS.md and CONTEXT.md for this phase.
+
+      **Phase**: $ARGUMENTS
+      **Discussion output (final Decision Ledger + flow)**: $adapt.output
+
+      ---
+
+      ## Step 1: Re-read context (fresh session)
+
+      ```bash
+      cat .planning/MILESTONE.md
+      ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/
+      cat .planning/milestones/*-phases/${ARGUMENTS}-*/${ARGUMENTS}-RESEARCH.md
+      ```
+
+      ## Step 2: Extract locked decisions from the ledger
+
+      The final Running Decision Ledger in `$adapt.output` has a **Locked** section.
+      Extract each item.
+
+      For each, structure:
+      - **What was decided** (one-line restatement)
+      - **Why** (rationale, tying back to research or user judgment)
+      - **Alternatives considered and rejected** (what we said NO to, and why)
+      - **Constraints this creates for plan + execute**
+
+      ## Step 3: Write DECISIONS.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-DECISIONS.md`
+
+      ```markdown
+      # Phase {NN} Decisions
+
+      **Locked**: {ISO date}
+      **Phase**: {NN} — {slug}
+
+      ## Decision 1: {title}
+
+      **Decision**: {one sentence}
+
+      **Rationale**: {2-3 sentences, citing research or user judgment}
+
+      **Alternatives rejected**:
+      - {alternative} — because {reason}
+      - {alternative} — because {reason}
+
+      **Constraints for plan/execute**:
+      - {constraint}
+      - {constraint}
+
+      ---
+
+      ## Decision 2: ...
+
+      ---
+
+      ## Deferred Items
+
+      Items the user explicitly chose to defer into execute-time discovery:
+      - {item} — to be decided when {trigger}
+
+      ## Open Risks
+
+      Items discussed but not fully resolved — the plan must account for these:
+      - {risk}
+      ```
+
+      ## Step 4: Write CONTEXT.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-CONTEXT.md`
+
+      This is the compact briefing the plan and execute workflows will read. It must be
+      self-contained — a new agent with no memory should be able to read just this file
+      (plus code references it cites) and understand the phase fully.
+
+      ```markdown
+      # Phase {NN} Context
+
+      **Phase**: {NN} — {slug}
+      **Intent**: {from roadmap}
+      **Approach**: {chosen approach in one sentence}
+
+      ## What this phase delivers
+
+      - {outcome 1, specific}
+      - {outcome 2}
+
+      ## What's out of scope
+
+      - {explicit non-goal}
+
+      ## Key files that will change
+
+      | File | Action | Why |
+      |------|--------|-----|
+      | `{path}` | CREATE / UPDATE | {one-line reason} |
+      | ... | ... | ... |
+
+      ## Existing patterns to follow
+
+      - `{file:line}` — {pattern name, one-line description}
+      - `{file:line}` — ...
+
+      ## Existing abstractions to extend (don't rebuild)
+
+      - `{class/function at file:line}` — {how this phase uses it}
+
+      ## Constraints
+
+      - {from decisions, from research pitfalls, from upstream phases}
+
+      ## Success criteria
+
+      - [ ] {specific, testable}
+      - [ ] {specific, testable}
+      - [ ] No regressions in existing tests
+      - [ ] {domain-specific UAT check}
+
+      ## Validation commands
+
+      - {test command}
+      - {lint command}
+      - {type-check command}
+
+      ## Inherited decisions (from upstream phases)
+
+      - From phase {NN}: {decision}
+      ```
+
+      ## Step 5: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "$(cat <<'EOF'
+      chore(planning): phase ${ARGUMENTS} decisions locked
+
+      {N} decisions recorded.
+      Approach: {one-line summary}
+      EOF
+      )"
+      ```
+
+      ## Step 6: Output
+
+      ```
+      ## Decisions Locked — Phase {NN}
+
+      **Decisions recorded**: {count}
+      **Deferred items**: {count}
+      **Open risks**: {count}
+
+      **Files written**:
+      - .planning/milestones/{version}-phases/{NN}-{slug}/{NN}-DECISIONS.md
+      - .planning/milestones/{version}-phases/{NN}-{slug}/{NN}-CONTEXT.md
+
+      **Next steps**:
+      - Window 1: (continue to next phase) `archon workflow run gsd-discuss {NN+1}`
+      - Window 2: (fire autonomous) `archon workflow run gsd-autonomous {NN}`
+      - Window 2 (split): `archon workflow run gsd-plan {NN}`
+      ```

@@ -1,0 +1,178 @@
+name: gsd-eval-review
+description: |
+  Use when: An AI-integrating phase shipped — retroactively audit whether the
+  evaluation strategy from AI-SPEC.md was actually implemented. Maps to GSD's
+  /gsd-eval-review.
+  Triggers: "eval review phase 04", "gsd eval-review NN".
+  NOT for: Phases without AI integration.
+  NOT for: Creating the initial AI-SPEC.md (run /gsd-ai-integration-phase in
+  Claude Code — not scaffolded here; it's setup-time, not pipeline-time).
+
+  Autonomous evaluation coverage audit for AI phases. Scores each eval dimension
+  declared in AI-SPEC.md as COVERED / PARTIAL / MISSING and produces remediation
+  guidance.
+
+  Input: Phase number. Requires {NN}-AI-SPEC.md to exist.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      SPEC_FILE="${PHASE_DIR}${ARGUMENTS}-AI-SPEC.md"
+
+      if [ ! -f "$SPEC_FILE" ]; then
+        echo "ERROR: $SPEC_FILE not found — this phase has no AI integration spec"
+        exit 1
+      fi
+
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "SPEC_FILE=$SPEC_FILE"
+
+      echo "=== AI_SPEC ==="
+      cat "$SPEC_FILE"
+
+      echo "=== DIFF ==="
+      git diff "${PLAN_COMMIT}..HEAD"
+
+      echo "=== EVAL_FILES ==="
+      find . -path ./node_modules -prune -o \( -name '*eval*' -o -name '*benchmark*' -o -name 'fixtures/*.json' \) -print 2>/dev/null | head -30
+
+  - id: audit
+    model: opus
+    depends_on: [load]
+    context: fresh
+    output_format:
+      type: object
+      properties:
+        dimensions:
+          type: array
+          items:
+            type: object
+            properties:
+              dimension: {type: string}
+              rubric: {type: string}
+              status: {type: string, enum: [COVERED, PARTIAL, MISSING]}
+              evidence: {type: string}
+              gap_notes: {type: string}
+              remediation: {type: string}
+        guardrails_status: {type: string, enum: [COVERED, PARTIAL, MISSING]}
+        monitoring_status: {type: string, enum: [COVERED, PARTIAL, MISSING]}
+        reference_dataset_status: {type: string, enum: [COVERED, PARTIAL, MISSING]}
+        overall: {type: string, enum: [PASS, PARTIAL, FAIL]}
+      required: [dimensions, guardrails_status, monitoring_status, reference_dataset_status, overall]
+    prompt: |
+      # GSD Eval Review — Audit AI Phase
+
+      **Phase**: $ARGUMENTS
+      **Load**: $load.output
+
+      ---
+
+      ## Step 1: Extract the eval strategy from AI-SPEC.md
+
+      AI-SPEC.md has sections like:
+      - `## Evaluation Strategy` (eval dimensions + rubrics + reference dataset)
+      - `## Guardrails` (pre/post checks)
+      - `## Production Monitoring` (telemetry spec)
+
+      Parse each dimension, rubric, guardrail, and monitoring metric.
+
+      ## Step 2: For each dimension, find implementing eval code
+
+      Grep the diff for eval harness code. Check for:
+      - An eval script/test that runs the rubric against a reference dataset
+      - Prompts or assertions that match the rubric's criteria
+      - An output format that records scores
+
+      Also verify the reference dataset exists (grep for fixtures, sample JSONs).
+
+      Classify each dimension:
+      - COVERED: eval code exists + dataset exists + it runs in CI (or has a
+        run command documented)
+      - PARTIAL: eval code OR dataset missing, or it runs but scores aren't recorded
+      - MISSING: none of the above
+
+      ## Step 3: Guardrails
+
+      Check for pre/post-inference guards in the AI pipeline code. For each guard
+      specified in AI-SPEC.md, find the implementing check + a test that exercises
+      a bad input to confirm the guard triggers.
+
+      ## Step 4: Production Monitoring
+
+      Are the metrics listed in AI-SPEC.md actually emitted in code?
+      (grep for the metric name, logger call, or telemetry tag)
+
+      ## Step 5: Reference dataset
+
+      Does it exist? How many examples? Is it in version control, or dynamically
+      generated?
+
+      ## Step 6: Emit structured output
+
+      Overall verdict:
+      - PASS: all dimensions COVERED + guardrails COVERED + monitoring COVERED
+      - PARTIAL: some PARTIAL, nothing critical MISSING
+      - FAIL: any critical dimension MISSING, or reference dataset MISSING
+
+      For each dimension, include a concrete `remediation` (what to write, where).
+
+  - id: write
+    model: sonnet
+    depends_on: [audit]
+    prompt: |
+      # GSD Eval Review — Write EVAL-REVIEW.md
+
+      **Phase**: $ARGUMENTS
+      **Audit**: $audit.output
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-EVAL-REVIEW.md`
+
+      ```markdown
+      # Phase ${ARGUMENTS} Evaluation Review
+
+      **Reviewed**: {ISO date}
+      **Overall**: {verdict}
+
+      ## Dimension Coverage
+
+      | Dimension | Rubric | Status | Evidence |
+      |-----------|--------|--------|----------|
+      | {name} | {rubric} | COVERED | `{file:line}` |
+      | {name} | {rubric} | MISSING | — |
+
+      ## Guardrails: {status}
+
+      {per-guardrail breakdown with file:line}
+
+      ## Production Monitoring: {status}
+
+      {per-metric breakdown with file:line}
+
+      ## Reference Dataset: {status}
+
+      {path, example count, format}
+
+      ## Remediation Plan
+
+      For every PARTIAL / MISSING item:
+      - **{item}**: {remediation from audit}
+
+      ## Recommendation
+
+      {"Evals sufficient for production" / "Close PARTIAL gaps before scaling" /
+       "Block rollout until MISSING critical evals are added"}
+      ```
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: eval review for phase ${ARGUMENTS} — {overall}"
+      ```
+
+      Output the file path + verdict.

@@ -1,0 +1,164 @@
+name: gsd-ui-review
+description: |
+  Use when: A frontend-touching phase has shipped — audit visual/UX pillars. Maps to
+  GSD's /gsd-ui-review (6-pillar visual audit).
+  Triggers: "ui review phase 03", "gsd ui-review NN".
+  NOT for: Creating a UI design contract (run /gsd-ui-phase in Claude Code before the
+  phase ships — not scaffolded here because it needs live browser access).
+
+  Autonomous 6-pillar UI review. Static-only — reads component code + tokens + CSS.
+  For live-browser audits, run /gsd-ui-review in Claude Code (it can drive Playwright
+  via MCP).
+
+  Input: Phase number. Assumes the phase changed frontend code.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      PHASE_DIR=$(ls -d .planning/milestones/*-phases/${ARGUMENTS}-*/ 2>/dev/null | head -1)
+      PLAN_FILE="${PHASE_DIR}${ARGUMENTS}-PLAN.md"
+      PLAN_COMMIT=$(git log --diff-filter=A --format="%H" -- "$PLAN_FILE" | tail -1)
+
+      echo "PHASE_DIR=$PHASE_DIR"
+      echo "PLAN_COMMIT=$PLAN_COMMIT"
+
+      echo "=== FILES ==="
+      git diff --name-only "${PLAN_COMMIT}..HEAD" | grep -E '\.(tsx|jsx|ts|js|vue|svelte|css|scss|sass|less)$'
+
+      echo "=== FRONTEND_DIFF ==="
+      git diff "${PLAN_COMMIT}..HEAD" -- '**/*.tsx' '**/*.jsx' '**/*.vue' '**/*.svelte' '**/*.css' '**/*.scss' | head -400
+
+      echo "=== TOKENS ==="
+      find . -path ./node_modules -prune -o \( -name 'tokens.*' -o -name 'theme.*' -o -name 'design-tokens.*' \) -print 2>/dev/null
+
+      echo "=== UI_SPEC ==="
+      if [ -f "${PHASE_DIR}${ARGUMENTS}-UI-SPEC.md" ]; then
+        cat "${PHASE_DIR}${ARGUMENTS}-UI-SPEC.md"
+      else
+        echo "NO_UI_SPEC"
+      fi
+
+  - id: audit
+    model: sonnet
+    depends_on: [load]
+    context: fresh
+    prompt: |
+      # GSD UI Review — 6-Pillar Audit
+
+      **Phase**: $ARGUMENTS
+      **Load**: $load.output
+
+      ---
+
+      Audit the changed frontend code against each of 6 pillars. Score 1-5 per pillar
+      with evidence.
+
+      ## Pillar 1 — Visual Hierarchy
+
+      Does the UI guide the eye correctly? Check:
+      - Heading levels and size contrast
+      - Spacing scale (4/8/16/24 or similar)
+      - Emphasis weight (bold, color, size) used consistently
+      - Dense vs. airy areas appropriate to content importance
+
+      ## Pillar 2 — Interaction Feedback
+
+      Does the UI show state transitions? Check:
+      - Button/link hover + focus + active states
+      - Loading states (skeleton, spinner, optimistic)
+      - Error states with actionable messages
+      - Empty states with guidance
+      - Success confirmations
+
+      ## Pillar 3 — Responsive Behavior
+
+      Does it work across viewports? Check:
+      - Flex/grid vs. fixed widths
+      - Image + text reflow
+      - Touch target sizes on mobile (≥44px)
+      - Breakpoints handled (mobile, tablet, desktop)
+
+      ## Pillar 4 — Accessibility
+
+      - Semantic HTML (nav, main, article, button vs div)
+      - ARIA labels for icon-only buttons
+      - Focus management (visible focus ring, logical tab order)
+      - Color contrast (check by inspecting tokens + usage — flag if WCAG AA is
+        violated)
+      - Keyboard-only operability
+
+      ## Pillar 5 — Design Token Consistency
+
+      - New colors/spacing introduced vs. existing tokens used
+      - Magic numbers in px (use scale)
+      - Duplicated styles that should be utilities
+      - Theme variables vs. hardcoded
+
+      ## Pillar 6 — Code Hygiene
+
+      - Component composition (single-responsibility, extractable)
+      - Props hygiene (typed, minimal, not prop-drilled)
+      - Side-effects in render (none)
+      - Dead UI code (unused props, unreachable branches)
+
+      ---
+
+      Output:
+
+      ```
+      ## Pillar Scores
+
+      | Pillar | Score (1-5) | Evidence |
+      |--------|-------------|----------|
+      | Visual Hierarchy | {N} | `{file:line}` — {note} |
+      | Interaction Feedback | {N} | `{file:line}` — {note} |
+      | Responsive Behavior | {N} | `{file:line}` — {note} |
+      | Accessibility | {N} | `{file:line}` — {note} |
+      | Design Token Consistency | {N} | `{file:line}` — {note} |
+      | Code Hygiene | {N} | `{file:line}` — {note} |
+
+      ## Findings
+
+      For each pillar scoring ≤3, enumerate specific findings with severity and fix.
+      ```
+
+  - id: write
+    model: sonnet
+    depends_on: [audit]
+    prompt: |
+      # GSD UI Review — Write UI-REVIEW.md
+
+      **Phase**: $ARGUMENTS
+      **Audit**: $audit.output
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-UI-REVIEW.md`
+
+      ```markdown
+      # Phase ${ARGUMENTS} UI Review
+
+      **Reviewed**: {ISO date}
+
+      ## Overall
+      Avg score: {N}/5
+      Lowest pillar: {name} ({score})
+
+      {paste the pillar scores table from audit}
+
+      ## Findings
+
+      {organized by pillar, each with file:line + severity + suggested fix}
+
+      ## Recommendation
+
+      {merge-ready / address-low-score-pillars / block-for-accessibility}
+      ```
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: UI review for phase ${ARGUMENTS}"
+      ```
+
+      Output the file path + score summary.

@@ -1,0 +1,499 @@
+name: gsd-research
+description: |
+  Use when: Starting a phase, before discuss — spawn parallel researchers to build the
+  evidence base. Maps to GSD-2's /gsd2-research (4 parallel researcher agents → synthesis).
+  Triggers: "research phase 02", "gsd research 01", "gather research for NN".
+  NOT for: Mid-execution research (use gsd-execute's per-task reads).
+  NOT for: Market/competitor research (use archon-interactive-prd).
+
+  Fan-out research workflow:
+  1. SCOPE      — read ROADMAP + phase slot, derive 4 research questions
+  2. RESEARCH   — 4 parallel researchers, each with fresh context
+  3. SYNTHESIZE — fan-in: merge findings into RESEARCH.md
+  4. COMMIT     — write .planning/milestones/{version}-phases/{NN}-*/{NN}-RESEARCH.md
+
+  Input: Phase number (e.g., "01" or "02.1"). Reads current milestone from .planning/MILESTONE.md.
+
+provider: claude
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: SCOPE — Derive research questions from the phase slot
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: scope
+    model: opus
+    prompt: |
+      # GSD Research — Scope
+
+      You are scoping a research phase. Output 4 targeted research questions that the
+      parallel researchers will each answer.
+
+      **Phase number**: $ARGUMENTS
+
+      ---
+
+      ## Step 1: Load context
+
+      ```bash
+      cat .planning/MILESTONE.md
+      ```
+
+      Extract the version and roadmap path. Then:
+
+      ```bash
+      cat .planning/milestones/{version}-ROADMAP.md
+      ```
+
+      Find the phase entry for **$ARGUMENTS**. Extract:
+      - Phase slug
+      - Intent
+      - Delivers
+      - Depends on (you may need to read prior phases' artifacts)
+      - Risk level
+
+      ## Step 2: Read upstream phase artifacts
+
+      For each phase in `depends_on`, read:
+      - `.planning/milestones/{version}-phases/{NN}-*/{NN}-PLAN.md` (if exists)
+      - `.planning/milestones/{version}-phases/{NN}-*/{NN}-VERIFICATION.md` (if exists)
+
+      These tell you what already exists and what contracts this phase must honor.
+
+      ## Step 3: Read codebase touchpoints
+
+      Read `CLAUDE.md`, `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/STACK.md`.
+      Skim `.planning/codebase/CONVENTIONS.md` for patterns that will matter.
+
+      ## Step 4: Derive 4 questions
+
+      Each question must be:
+      - **Specific**: not "how should we handle auth" but "how does project X handle
+        JWT refresh with multi-tenant isolation, given our existing SessionManager in
+        packages/auth/session.ts:42"
+      - **Answerable by research** (docs, other repos, code reading) — not decisions
+        the user must make
+      - **Non-overlapping** with the other 3 questions
+      - **Load-bearing**: if left unanswered, the plan will be uninformed
+
+      The 4 questions should collectively cover these angles (one each, typically):
+      - **Q1 — How is this solved elsewhere?** (framework docs, other repos, blog posts)
+      - **Q2 — What does our codebase already have that relates?** (existing abstractions,
+        tests, prior patterns)
+      - **Q3 — What are the constraints, pitfalls, and known failure modes?** (security,
+        performance, backwards compat, upgrade paths)
+      - **Q4 — What are the alternative approaches, and what's the trade-off?** (A vs B
+        vs C, with decision criteria)
+
+      ## Step 5: Output
+
+      Write a scratch file:
+
+      ```bash
+      mkdir -p $ARTIFACTS_DIR
+      ```
+
+      Write `$ARTIFACTS_DIR/scope.json`:
+
+      ```json
+      {
+        "phase_number": "$ARGUMENTS",
+        "version": "{extracted}",
+        "phase_dir": ".planning/milestones/{version}-phases/{NN}-{slug}",
+        "phase_intent": "{from roadmap}",
+        "questions": {
+          "q1_external": "How is X solved in Y ecosystem, given our constraint Z?",
+          "q2_internal": "What in our codebase already addresses parts of X? Specifically check A, B, C.",
+          "q3_pitfalls": "What are known failure modes for X, particularly around W?",
+          "q4_alternatives": "A vs B vs C for X — what's the trade-off given our stack?"
+        }
+      }
+      ```
+
+      Also output the questions in prose to the conversation so the user can see them.
+
+      ## Step 6: Ensure phase directory exists
+
+      ```bash
+      mkdir -p .planning/milestones/{version}-phases/{NN}-{slug}
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: RESEARCH — 4 parallel researchers (fresh context each)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: research-external
+    model: sonnet
+    depends_on: [scope]
+    context: fresh
+    prompt: |
+      # GSD Research — External (How is this solved elsewhere?)
+
+      You are one of 4 parallel researchers. Your question is **Q1 — external**.
+
+      Read your question from: `$ARTIFACTS_DIR/scope.json`
+      (specifically `.questions.q1_external`)
+
+      ---
+
+      ## Ground rules
+
+      - You have fresh context. Read `CLAUDE.md` and the phase's roadmap entry for
+        minimum grounding, then dive into the question.
+      - You may use WebSearch/WebFetch for framework docs, official guides, reputable
+        blog posts.
+      - Cite everything. Every claim → (file:line) if internal, or (URL + date accessed)
+        if external.
+      - Do NOT invent. If you can't find an answer, say "not found" and explain what
+        you searched.
+      - Length target: 400-800 words.
+
+      ## Output
+
+      Write `$ARTIFACTS_DIR/q1-external.md`:
+
+      ```markdown
+      # Q1 — External Research
+
+      **Question**: {verbatim from scope.json}
+
+      ## Summary (2-3 sentences)
+
+      ## Findings
+
+      ### Finding 1: {title}
+      {content with citations}
+
+      ### Finding 2: {title}
+      {content with citations}
+
+      ...
+
+      ## Implications for this phase
+
+      - {what this means for our plan}
+      - {what this rules out}
+
+      ## Sources
+
+      - [Title](URL) — accessed {date}
+      - [Title](URL) — accessed {date}
+      ```
+
+  - id: research-internal
+    model: sonnet
+    depends_on: [scope]
+    context: fresh
+    prompt: |
+      # GSD Research — Internal (What does our codebase already have?)
+
+      You are one of 4 parallel researchers. Your question is **Q2 — internal**.
+
+      Read your question from: `$ARTIFACTS_DIR/scope.json`
+      (specifically `.questions.q2_internal`)
+
+      ---
+
+      ## Ground rules
+
+      - Fresh context. Read `CLAUDE.md` and the phase's roadmap entry for grounding.
+      - Your job: find what EXISTS in the repo that relates. Extensions over creations.
+      - Cite file:line for everything. Run Grep/Glob aggressively.
+      - Read actual files — don't assume from filenames.
+      - Length target: 400-800 words.
+
+      ## Search strategy
+
+      1. Grep for domain keywords related to the question.
+      2. Glob for likely file paths (e.g., `packages/*/src/auth/**/*`).
+      3. Read the top 5-10 most relevant files.
+      4. Check recent git history in that area: `git log --oneline --since=90d -- <path>`.
+      5. Check for tests — they encode intended behavior.
+
+      ## Output
+
+      Write `$ARTIFACTS_DIR/q2-internal.md`:
+
+      ```markdown
+      # Q2 — Internal Research
+
+      **Question**: {verbatim from scope.json}
+
+      ## Summary (2-3 sentences)
+
+      ## Existing Abstractions
+
+      ### {Abstraction name} — `{file:line}`
+      **What it does**: ...
+      **How it relates to this phase**: ...
+      **Extension surface**: {public API, callable functions}
+
+      ### ...
+
+      ## Existing Patterns (to follow, not reinvent)
+
+      - `{file:line}` — {pattern, one line}
+
+      ## Anti-patterns / gotchas I noticed
+
+      - `{file:line}` — {what to avoid}
+
+      ## Implications for this phase
+
+      - Extend: {specific abstractions to extend}
+      - Reuse: {specific utilities}
+      - Avoid: {anti-patterns to not repeat}
+      ```
+
+  - id: research-pitfalls
+    model: sonnet
+    depends_on: [scope]
+    context: fresh
+    prompt: |
+      # GSD Research — Pitfalls (known failure modes)
+
+      You are one of 4 parallel researchers. Your question is **Q3 — pitfalls**.
+
+      Read your question from: `$ARTIFACTS_DIR/scope.json`
+      (specifically `.questions.q3_pitfalls`)
+
+      ---
+
+      ## Ground rules
+
+      - Fresh context. Read `CLAUDE.md` and `.planning/codebase/CONCERNS.md` if present.
+      - WebSearch is your friend for CVEs, bug trackers, incident postmortems.
+      - Also grep the repo's git history for prior incidents/rollbacks: `git log --all --oneline -i --grep='revert' --grep='rollback' --grep='incident' --grep='hotfix'`.
+      - Length target: 400-800 words.
+
+      ## Focus areas
+
+      For whatever the question is, consider each of these lenses:
+      - **Security** — attack surfaces, injection vectors, privilege escalation
+      - **Performance** — N+1, cache stampede, unbounded growth, hot loops
+      - **Concurrency** — race conditions, deadlocks, event-loop blocking
+      - **Backwards compatibility** — who relies on current behavior
+      - **Operational** — observability gaps, failure recovery, deploy safety
+      - **Data** — migration risk, data loss scenarios, denormalization drift
+
+      Don't enumerate blindly — pick the 3-5 lenses most relevant to the question.
+
+      ## Output
+
+      Write `$ARTIFACTS_DIR/q3-pitfalls.md`:
+
+      ```markdown
+      # Q3 — Pitfalls Research
+
+      **Question**: {verbatim from scope.json}
+
+      ## Summary (2-3 sentences)
+
+      ## Known Failure Modes
+
+      ### Pitfall 1: {name}
+      **How it manifests**: ...
+      **Source/evidence**: {CVE ID, GitHub issue URL, prior commit, etc.}
+      **Mitigation**: ...
+      **Detection**: {test, metric, log pattern}
+
+      ### Pitfall 2: ...
+
+      ## Prior incidents in this repo (if any)
+
+      - {commit/PR} — {what happened} — {how it was fixed}
+
+      ## Must-haves for the plan
+
+      - [ ] {specific check or guard this phase must include}
+      - [ ] {specific test this phase must write}
+      ```
+
+  - id: research-alternatives
+    model: sonnet
+    depends_on: [scope]
+    context: fresh
+    prompt: |
+      # GSD Research — Alternatives (A vs B vs C)
+
+      You are one of 4 parallel researchers. Your question is **Q4 — alternatives**.
+
+      Read your question from: `$ARTIFACTS_DIR/scope.json`
+      (specifically `.questions.q4_alternatives`)
+
+      ---
+
+      ## Ground rules
+
+      - Fresh context. Read the phase's roadmap entry for what must be delivered.
+      - Your job: enumerate 2-4 viable approaches and compare them honestly.
+      - No cheerleading. Each approach must include its downsides.
+      - Length target: 500-1000 words.
+
+      ## Comparison matrix (required)
+
+      For each approach, fill this table:
+
+      | Dimension | Approach A | Approach B | Approach C |
+      |-----------|------------|------------|------------|
+      | Complexity to implement | Low / Med / High + why | ... | ... |
+      | Complexity to maintain | ... | ... | ... |
+      | Performance profile | ... | ... | ... |
+      | Blast radius on failure | ... | ... | ... |
+      | Reversibility | easy / medium / hard | ... | ... |
+      | Our stack fit | ... | ... | ... |
+      | Net recommendation | ✓ / ✗ / conditional | ... | ... |
+
+      ## Output
+
+      Write `$ARTIFACTS_DIR/q4-alternatives.md`:
+
+      ```markdown
+      # Q4 — Alternatives Research
+
+      **Question**: {verbatim from scope.json}
+
+      ## Summary (2-3 sentences: which approach wins and why)
+
+      ## Approaches
+
+      ### Approach A — {name}
+      {description}
+      **Pros**: ...
+      **Cons**: ...
+      **When to choose**: ...
+
+      ### Approach B — ...
+
+      ### Approach C — ...
+
+      ## Comparison
+
+      {matrix as above}
+
+      ## Recommended Approach
+
+      **{A / B / C}** — because {2-3 sentence rationale}.
+
+      ## Decision criteria the user should validate
+
+      - {criterion 1 — if true, go with A; if false, go with B}
+      - {criterion 2}
+      ```
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: SYNTHESIZE — Fan-in to RESEARCH.md
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: synthesize
+    model: opus
+    depends_on: [research-external, research-internal, research-pitfalls, research-alternatives]
+    context: fresh
+    prompt: |
+      # GSD Research — Synthesize
+
+      The 4 parallel researchers have each written their findings to disk. Your job:
+      merge them into a single RESEARCH.md, detect contradictions, and produce an
+      executive summary.
+
+      ---
+
+      ## Step 1: Read all 4 outputs
+
+      ```bash
+      cat $ARTIFACTS_DIR/scope.json
+      cat $ARTIFACTS_DIR/q1-external.md
+      cat $ARTIFACTS_DIR/q2-internal.md
+      cat $ARTIFACTS_DIR/q3-pitfalls.md
+      cat $ARTIFACTS_DIR/q4-alternatives.md
+      ```
+
+      ## Step 2: Detect contradictions
+
+      Cross-reference the four outputs. Look for:
+      - External best practice that contradicts our internal constraints
+      - Recommended approach (Q4) that conflicts with a pitfall (Q3)
+      - Extension opportunity (Q2) that the recommendation (Q4) ignores
+
+      Call these out explicitly — they're the highest-value input for discuss.
+
+      ## Step 3: Write RESEARCH.md
+
+      Location: `.planning/milestones/{version}-phases/{NN}-{slug}/{NN}-RESEARCH.md`
+      (Read the scope.json for exact paths.)
+
+      ```markdown
+      # Phase {NN} Research
+
+      **Phase**: {NN} — {slug}
+      **Intent**: {from roadmap}
+      **Research date**: {ISO date}
+
+      ## Executive Summary
+
+      {3-5 sentence summary suitable for starting the discuss phase}
+
+      ## Recommended Approach
+
+      **{which approach from Q4}** — because {rationale synthesizing all 4 findings}.
+
+      ### Key constraints this must respect
+      - {from Q2 — existing abstractions to extend}
+      - {from Q3 — pitfalls to guard against}
+
+      ### Open decisions for discussion
+      - {decision the user needs to make}
+      - {trade-off that requires user judgment}
+
+      ### Contradictions to resolve
+      - {if any surfaced}
+
+      ---
+
+      ## Detailed Findings
+
+      ### External (Q1)
+      {q1-external.md content, inlined}
+
+      ### Internal (Q2)
+      {q2-internal.md content, inlined}
+
+      ### Pitfalls (Q3)
+      {q3-pitfalls.md content, inlined}
+
+      ### Alternatives (Q4)
+      {q4-alternatives.md content, inlined}
+
+      ---
+
+      ## Sources
+
+      {deduplicated list from all 4 outputs}
+      ```
+
+      ## Step 4: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "$(cat <<'EOF'
+      chore(planning): phase {NN} research complete
+
+      Key finding: {one sentence}
+      Recommended: {approach}
+      Open decisions: {count}
+      EOF
+      )"
+      ```
+
+      ## Step 5: Report
+
+      ```
+      ## Research Complete — Phase {NN}
+
+      **File**: .planning/milestones/{version}-phases/{NN}-{slug}/{NN}-RESEARCH.md
+      **Recommended approach**: {...}
+      **Open decisions for discuss**: {count}
+      **Contradictions flagged**: {count}
+
+      **Next step (Window 1)**: `archon workflow run gsd-discuss {NN}`
+      ```

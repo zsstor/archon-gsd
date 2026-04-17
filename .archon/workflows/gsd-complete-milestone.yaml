@@ -1,0 +1,200 @@
+name: gsd-complete-milestone
+description: |
+  Use when: Milestone audit passed — archive the milestone and prepare the workspace
+  for the next version. Maps to GSD's /gsd-complete-milestone.
+  Triggers: "complete milestone v2.0", "close milestone", "archive milestone".
+  NOT for: Auditing (run gsd-audit-milestone first).
+  NOT for: Starting the next milestone (use gsd-new-milestone after).
+
+  Autonomous archival:
+  1. GUARD     — require MILESTONE-AUDIT.md with verdict READY
+  2. SUMMARIZE — generate milestone summary (decisions, phases, outcomes)
+  3. TAG       — git tag milestone-{version}
+  4. ARCHIVE   — move .planning/milestones/{version}-* into .planning/milestones/archive/
+  5. CLEANUP   — clear MILESTONE.md, update ROADMAP.md
+
+  Input: Milestone version.
+
+provider: claude
+
+nodes:
+  - id: guard
+    bash: |
+      set -e
+      VERSION="${ARGUMENTS}"
+      AUDIT=".planning/milestones/${VERSION}-MILESTONE-AUDIT.md"
+
+      if [ ! -f "$AUDIT" ]; then
+        echo "ERROR: audit file missing: $AUDIT"
+        echo "Run: archon workflow run gsd-audit-milestone ${VERSION}"
+        exit 1
+      fi
+
+      if ! grep -q "Verdict.*READY" "$AUDIT"; then
+        echo "ERROR: audit verdict is not READY. Open $AUDIT and resolve gaps first."
+        exit 1
+      fi
+
+      echo "VERSION=${VERSION}"
+      echo "AUDIT=${AUDIT}"
+      echo "AUDIT_VERDICT=READY"
+
+  - id: summarize
+    model: sonnet
+    depends_on: [guard]
+    prompt: |
+      # GSD Complete Milestone — Summarize
+
+      **Version**: $ARGUMENTS
+
+      ## Step 1: Read everything
+
+      ```bash
+      cat .planning/milestones/${ARGUMENTS}-ROADMAP.md
+      cat .planning/milestones/${ARGUMENTS}-MILESTONE-AUDIT.md
+      for dir in .planning/milestones/${ARGUMENTS}-phases/*/; do
+        cat "${dir}$(basename "$dir" | cut -d- -f1)-VERIFICATION.md"
+      done
+      ```
+
+      ## Step 2: Write MILESTONE-SUMMARY.md
+
+      Location: `.planning/milestones/${ARGUMENTS}-SUMMARY.md`
+
+      ```markdown
+      # Milestone ${ARGUMENTS} — Summary
+
+      **Completed**: {ISO date}
+      **Intent**: {from roadmap}
+
+      ## What Shipped
+
+      {bulleted list of delivered outcomes, synthesized from phase VERIFICATION.md files}
+
+      ## Phase-by-Phase
+
+      ### Phase 01 — {slug}
+      - Delivered: {one line}
+      - Key decisions: {from DECISIONS.md}
+      - Verification: {verdict + summary}
+
+      ### Phase 02 — ...
+
+      ## Key Decisions (Cross-Phase)
+
+      {decisions that shaped multiple phases — auth model, data layout, etc.}
+
+      ## Outcomes vs. Original Requirements
+
+      {copy the requirements coverage table from MILESTONE-AUDIT.md}
+
+      ## Surprises / Lessons
+
+      {synthesize from progress.txt FAILED entries and any retrospective notes —
+      use light touch; gsd-extract-learnings is the deeper retrospective}
+
+      ## Follow-ups for Next Milestone
+
+      {anything deferred, anything that opened new questions}
+      ```
+
+      ```bash
+      git add .planning/
+      git commit -m "docs: milestone ${ARGUMENTS} summary"
+      ```
+
+  - id: tag
+    depends_on: [summarize]
+    bash: |
+      set -e
+      VERSION="${ARGUMENTS}"
+      TAG="milestone-${VERSION}"
+
+      if git rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "Tag $TAG already exists — skipping"
+      else
+        git tag -a "$TAG" -m "Milestone ${VERSION} complete"
+        git push origin "$TAG" 2>&1 || true
+        echo "Tagged: $TAG"
+      fi
+
+  - id: archive
+    depends_on: [tag]
+    bash: |
+      set -e
+      VERSION="${ARGUMENTS}"
+      mkdir -p .planning/milestones/archive/${VERSION}
+
+      # Move phase directories
+      if [ -d ".planning/milestones/${VERSION}-phases" ]; then
+        mv ".planning/milestones/${VERSION}-phases" ".planning/milestones/archive/${VERSION}/phases"
+      fi
+
+      # Move top-level milestone artifacts
+      for f in .planning/milestones/${VERSION}-*.md; do
+        if [ -f "$f" ]; then
+          mv "$f" ".planning/milestones/archive/${VERSION}/$(basename "$f")"
+        fi
+      done
+
+      echo "Archived to .planning/milestones/archive/${VERSION}/"
+      ls -la ".planning/milestones/archive/${VERSION}/"
+
+  - id: cleanup
+    model: sonnet
+    depends_on: [archive]
+    prompt: |
+      # GSD Complete Milestone — Update Planning State
+
+      **Version**: $ARGUMENTS
+
+      ## Step 1: Clear current-milestone pointer
+
+      Rewrite `.planning/MILESTONE.md`:
+
+      ```markdown
+      # Current Milestone: (none)
+
+      **Last completed**: ${ARGUMENTS} — see `.planning/milestones/archive/${ARGUMENTS}/`
+
+      To start the next milestone:
+      ```
+      archon workflow run gsd-new-milestone "<version> — <intent>"
+      ```
+      ```
+
+      ## Step 2: Update .planning/ROADMAP.md
+
+      Move the milestone's entry from "Active / Upcoming" to a "Completed" section
+      (create the section if it doesn't exist). Preserve the link, point it at the
+      archived summary file.
+
+      ## Step 3: If a queued milestone is now ready to activate, flag it
+
+      Check `.planning/milestones/queued/` — are any queued milestones waiting on
+      `${ARGUMENTS}`? If so, note in the output.
+
+      ## Step 4: Commit
+
+      ```bash
+      git add .planning/
+      git commit -m "chore(planning): milestone ${ARGUMENTS} archived"
+      git push -u origin HEAD 2>&1 || true
+      ```
+
+      ## Step 5: Output
+
+      ```
+      ===============================================================
+      MILESTONE ${ARGUMENTS} — COMPLETE & ARCHIVED
+      ===============================================================
+
+      Tag: milestone-${ARGUMENTS} (pushed)
+      Archive: .planning/milestones/archive/${ARGUMENTS}/
+      Summary: .planning/milestones/archive/${ARGUMENTS}/${ARGUMENTS}-SUMMARY.md
+
+      Next actions:
+      {if queued milestones ready: archon workflow run gsd-new-milestone "{version}"}
+      {else: plan the next milestone}
+      ===============================================================
+      ```

@@ -1,0 +1,147 @@
+name: gsd-audit-milestone
+description: |
+  Use when: All phases of a milestone appear complete — audit completeness against the
+  original milestone intent before archiving. Maps to GSD's /gsd-audit-milestone.
+  Triggers: "audit milestone v2.0", "audit before archiving", "milestone readiness".
+  NOT for: Auditing a single phase (use gsd-verify).
+  NOT for: Archiving (use gsd-complete-milestone after this passes).
+
+  Autonomous milestone audit:
+  1. LOAD   — milestone requirements, roadmap, every phase's VERIFICATION.md
+  2. AUDIT  — map every original requirement to delivering phase/evidence
+  3. REPORT — structured MILESTONE-AUDIT.md with gap list and verdict
+
+  Input: Milestone version (e.g., "v2.0"). Reads .planning/milestones/{version}-*.
+
+provider: claude
+
+nodes:
+  - id: load
+    bash: |
+      set -e
+      VERSION="${ARGUMENTS}"
+      ROADMAP=".planning/milestones/${VERSION}-ROADMAP.md"
+
+      if [ ! -f "$ROADMAP" ]; then
+        echo "ERROR: roadmap not found: $ROADMAP"
+        exit 1
+      fi
+
+      echo "VERSION=$VERSION"
+      echo "ROADMAP=$ROADMAP"
+
+      echo "=== ROADMAP ==="
+      cat "$ROADMAP"
+
+      echo "=== PHASES ==="
+      for dir in .planning/milestones/${VERSION}-phases/*/; do
+        PHASE_NUM=$(basename "$dir" | cut -d- -f1)
+        echo "-- PHASE $PHASE_NUM --"
+        for artifact in DECISIONS VERIFICATION; do
+          FILE="${dir}${PHASE_NUM}-${artifact}.md"
+          if [ -f "$FILE" ]; then
+            echo "--- $artifact ---"
+            cat "$FILE"
+          else
+            echo "--- $artifact: MISSING ---"
+          fi
+        done
+      done
+
+  - id: audit
+    model: opus
+    depends_on: [load]
+    output_format:
+      type: object
+      properties:
+        verdict: {type: string, enum: [READY, NEEDS_WORK]}
+        requirements_total: {type: integer}
+        requirements_covered: {type: integer}
+        requirements_partial: {type: integer}
+        requirements_missing: {type: integer}
+        phases_passing: {type: integer}
+        phases_partial: {type: integer}
+        phases_failing: {type: integer}
+        gaps: {type: array, items: {type: string}}
+      required: [verdict, requirements_total, requirements_covered, requirements_partial, requirements_missing, phases_passing, phases_partial, phases_failing, gaps]
+    prompt: |
+      # GSD Audit Milestone
+
+      **Version**: $ARGUMENTS
+      **Load output**: $load.output
+
+      ---
+
+      ## Step 1: Extract original requirements
+
+      From the roadmap's "Requirements Summary" (or the adjacent REQUIREMENTS.md if
+      separate), extract each requirement.
+
+      ## Step 2: Map each requirement to delivering evidence
+
+      For each requirement:
+      - Which phase(s) claim to deliver it (per DECISIONS.md + PLAN.md)?
+      - Does that phase's VERIFICATION.md show the criterion COVERED?
+      - Did the phase verdict come out PASS, PARTIAL, or FAIL?
+
+      Classify:
+      - **COVERED**: phase PASS + criterion COVERED
+      - **PARTIAL**: phase PARTIAL or criterion PARTIAL
+      - **MISSING**: no phase delivers this, or the delivering phase FAILed
+
+      ## Step 3: Build gap list
+
+      For each MISSING or PARTIAL requirement, write one-line gaps:
+
+      `"{requirement}" — {phase that was supposed to deliver it} — {what's missing}`
+
+      ## Step 4: Write MILESTONE-AUDIT.md
+
+      Location: `.planning/milestones/${VERSION}-MILESTONE-AUDIT.md`
+
+      ```markdown
+      # Milestone ${VERSION} Audit
+
+      **Audited**: {ISO date}
+      **Verdict**: {READY / NEEDS_WORK}
+
+      ## Summary
+
+      {2-4 sentences}
+
+      ## Requirements Coverage
+
+      | # | Requirement | Delivering Phase | Status | Evidence |
+      |---|-------------|------------------|--------|----------|
+      | 1 | {req} | Phase {NN} | COVERED | `{NN}-VERIFICATION.md` |
+      | 2 | {req} | Phase {NN} | PARTIAL | {note} |
+      | 3 | {req} | — | MISSING | {why} |
+
+      ## Phase Status
+
+      | Phase | Verdict |
+      |-------|---------|
+      | 01 | PASS |
+      | 02 | PARTIAL |
+
+      ## Gaps
+
+      - {gap}
+      - {gap}
+
+      ## Out-of-Scope Items Delivered Anyway
+
+      {things that shipped but weren't in original scope — often fine, but flag}
+
+      ## Recommendation
+
+      {"Ready to archive via gsd-complete-milestone" OR "Address gaps before archiving"}
+      ```
+
+      Commit:
+      ```bash
+      git add .planning/
+      git commit -m "chore(planning): milestone ${VERSION} audit — {verdict}"
+      ```
+
+      Emit structured output with the counts and verdict.
