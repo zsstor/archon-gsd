@@ -17,6 +17,7 @@ description: |
   Input: Phase number (e.g., "01" or "02.1"). Reads current milestone + research.
 
 provider: claude
+model: opus
 interactive: true
 
 nodes:
@@ -104,7 +105,6 @@ nodes:
   # ═══════════════════════════════════════════════════════════════
 
   - id: adapt
-    model: opus
     depends_on: [load]
     loop:
       prompt: |

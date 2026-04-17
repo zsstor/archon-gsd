@@ -30,6 +30,8 @@ description: |
   maintained for partial re-runs.
 
 provider: claude
+model: sonnet
+fallbackModel: claude-opus-4-7
 
 nodes:
   # ═══════════════════════════════════════════════════════════════
@@ -194,8 +196,6 @@ nodes:
   - id: implement
     depends_on: [setup]
     idle_timeout: 900000
-    model: sonnet
-    fallbackModel: claude-opus-4-7
     loop:
       prompt: |
         # GSD Autonomous — Implementation Loop

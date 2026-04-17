@@ -15,6 +15,7 @@ description: |
   Input: Milestone name + 1-2 sentence intent (e.g., "v2.0 — multi-tenant auth").
 
 provider: claude
+model: opus
 interactive: true
 
 nodes:
@@ -106,7 +107,6 @@ nodes:
   # ═══════════════════════════════════════════════════════════════
 
   - id: requirements
-    model: opus
     depends_on: [understand-gate]
     loop:
       prompt: |
