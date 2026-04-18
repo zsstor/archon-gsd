@@ -11,6 +11,9 @@
 | 05 | Cross-Model Review Workflow | 02, 04 | High |
 | 06 | Phase Conventions | 01 | Low |
 | 07 | Claudeception Feedback Loop | 03, 05 | Medium |
+| 08 | Local-Only Mode | 05 | Medium |
+| 09 | Autonomous DEBT Processing | 02, 05, 08 | High |
+| 10 | Autonomous Issue Processing | 09 | Medium |
 
 ---
 
@@ -96,7 +99,7 @@
 - PR comment posting via `gh pr comment`
 - Routing:
   - Blockers + straightforward non-blockers → feed back to original model (or escalate)
-  - Non-blockers with decisions → 999.x cleanup phase
+  - Non-blockers with decisions → DEBT.x cleanup phase
 - Integration with existing `review-pr` skill logic
 
 **Key Files**:
@@ -107,26 +110,28 @@
 
 ## Phase 06: Phase Conventions
 
-**Intent**: Make 999.x (cleanup) and 9999.x (backlog) conventions config-driven so workflows don't hardcode magic numbers.
+**Intent**: Make DEBT.x, PARK.x, and WANT.x conventions config-driven so workflows don't hardcode magic strings.
 
 **Deliverables**:
-- Add `phase_conventions` to config:
+- Phase conventions in config:
   ```json
   {
     "phase_conventions": {
-      "cleanup_series": 999,
-      "backlog_series": 9999,
-      "decimal_suffix_start": 1
+      "cleanup_prefix": "DEBT",
+      "backlog_prefix": "PARK",
+      "issues_prefix": "WANT",
+      "decimal_suffix_start": 1,
+      "scope": "milestone"
     }
   }
   ```
-- Update workflows that reference these conventions to read from config
-- Document behavior: 999.1 → 999.2 on completion; 9999.x completes when promoted
+- Update workflows that reference phase conventions to read from config
+- Document lifecycle: DEBT.x manual increment, PARK.x/WANT.x complete on promotion
 
 **Key Files**:
 - `.planning/config.json` (UPDATE)
-- `.archon/workflows/gsd-verify.yaml` (UPDATE) — reference config for routing
-- `.archon/workflows/gsd-review-pr.yaml` (UPDATE if created)
+- `~/.claude/skills/review-pr/SKILL.md` (UPDATE) — reference config for routing
+- `.planning/PROJECT.md` (UPDATE) — document conventions
 
 ---
 
@@ -148,6 +153,81 @@
 
 ---
 
+## Phase 08: Local-Only Mode
+
+**Intent**: Support projects without GitHub repos by providing local fallbacks for all GH-dependent workflows.
+
+**Deliverables**:
+- Config flag for GitHub mode:
+  ```json
+  {
+    "github": {
+      "enabled": true,
+      "fallback": "local"
+    }
+  }
+  ```
+- Local fallbacks:
+  - `gsd-review-pr` → `gsd-review-branch` (diff against main, REVIEW.md output)
+  - `gh pr create` → skip, document in artifact
+  - `gh pr comment` → append to local file
+- Every `gh` command has a local fallback path
+
+**Key Files**:
+- `.planning/config.json` (UPDATE) — github section
+- `.archon/workflows/gsd-review-pr.yaml` (UPDATE) — local mode branch
+- `~/dev/.meta/bin/local-pr` (CREATE) — local PR simulation
+
+---
+
+## Phase 09: Autonomous DEBT Processing
+
+**Intent**: Use cheap async models to autonomously work DEBT items to a reviewable state.
+
+**Flow**:
+1. Invoke `gsd-process-debt` (manual or scheduled)
+2. Cheap model (Haiku/Gemini/GLM) picks a DEBT.x item
+3. Implements fix on a branch
+4. Creates draft PR
+5. Delegates review to Codex
+6. Output: Draft PR with review comments, ready for human merge
+
+**Deliverables**:
+- New workflow: `.archon/workflows/gsd-process-debt.yaml`
+- Integration with draft PR creation
+- Codex review delegation
+- Stops before merge — human reviews final
+
+**Key Files**:
+- `.archon/workflows/gsd-process-debt.yaml` (CREATE)
+- `.planning/config.json` — `autonomous` section (CREATE)
+
+---
+
+## Phase 10: Autonomous Issue Processing
+
+**Intent**: Triage GitHub issues into WANT.x planning artifacts using cheap models.
+
+**Flow**:
+1. Invoke `gsd-process-issues`
+2. Fetch open issues: `gh issue list --state open --search "-label:autotriaged"`
+3. For each issue → create `WANT.x` planning artifact
+4. Cheap model does triage: complexity estimate, affected files, draft approach
+5. Add `autotriaged` label to processed issues
+6. Output: `WANT.1-issue-42/WANT.1-TRIAGE.md` ready for review
+
+**Deliverables**:
+- New workflow: `.archon/workflows/gsd-process-issues.yaml`
+- WANT.x phase convention support
+- `autotriaged` label management
+- Triage artifact template
+
+**Key Files**:
+- `.archon/workflows/gsd-process-issues.yaml` (CREATE)
+- `.planning/config.json` — `issues` section (CREATE)
+
+---
+
 ## Parallelization Notes
 
 - Phases 01, 04, 06 can start in parallel (minimal dependencies)
@@ -155,5 +235,8 @@
 - Phase 03 needs 02
 - Phase 05 needs 02 + 04
 - Phase 07 needs 03 + 05
+- Phase 08 needs 05 (review workflow exists before adding local mode)
+- Phase 09 needs 02, 05, 08 (routing, review, local fallback all available)
+- Phase 10 needs 09 (same pattern, just different source)
 
-Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05 → 07
+Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05 → 07 → 08 → 09 → 10

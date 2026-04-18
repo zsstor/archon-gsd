@@ -1,12 +1,12 @@
 # Phase 06 Context
 
 **Phase**: 06 — Phase Conventions
-**Intent**: Make DEBT.x and PARK.x conventions config-driven, update workflows to read from config
+**Intent**: Make DEBT.x, PARK.x, and WANT.x conventions config-driven, update workflows to read from config
 **Approach**: Update config.json, fix review-pr skill, document lifecycle
 
 ## What this phase delivers
 
-- Updated config.json with `DEBT` and `PARK` prefixes (replacing 999/9999)
+- Updated config.json with `DEBT`, `PARK`, and `WANT` prefixes
 - review-pr skill updated to read conventions from config
 - Documented lifecycle semantics in PROJECT.md
 
@@ -37,7 +37,7 @@
 
 ## Success criteria
 
-- [ ] config.json uses `cleanup_prefix: "DEBT"` and `backlog_prefix: "PARK"`
+- [ ] config.json uses `cleanup_prefix: "DEBT"`, `backlog_prefix: "PARK"`, `issues_prefix: "WANT"`
 - [ ] review-pr skill reads phase conventions from config
 - [ ] PROJECT.md documents lifecycle (manual increment, promotion = completion)
 - [ ] Phase directories sort correctly: 01, 02, ..., DEBT.1, PARK.1

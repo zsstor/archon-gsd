@@ -31,6 +31,7 @@ A workflow system where the right model handles each task — delegating simple 
 - `XX.1, XX.2, ...`: Decimal phases for remediation/hotfixes inserted mid-milestone
 - `DEBT.x`: Deferred technical debt — non-blocking issues that need attention but aren't urgent
 - `PARK.x`: Parking lot — ideas awaiting prioritization into sequential phases
+- `WANT.x`: User wants — GitHub issues and feature requests awaiting triage
 
 ### Lifecycle
 
@@ -45,3 +46,10 @@ A workflow system where the right model handles each task — delegating simple 
 - A `PARK.x` phase **completes when promoted** to a sequential phase (e.g., moved to phase 12)
 - The promotion is the completion — no separate close action needed
 - Milestone-scoped: can be promoted to current or future milestone
+
+**WANT.x (User Wants)**
+- `WANT.x` phases are auto-created from GitHub issues via `gsd-process-issues`
+- Each issue gets a triage artifact: `WANT.1-issue-42/WANT.1-TRIAGE.md`
+- Processed issues are labeled `autotriaged` to avoid re-processing
+- A `WANT.x` phase **completes when promoted** to a sequential phase
+- Issues can stay open indefinitely without re-burning tokens

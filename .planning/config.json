@@ -93,8 +93,24 @@
   "phase_conventions": {
     "cleanup_prefix": "DEBT",
     "backlog_prefix": "PARK",
+    "issues_prefix": "WANT",
     "decimal_suffix_start": 1,
     "scope": "milestone"
+  },
+  "github": {
+    "enabled": true,
+    "fallback": "local"
+  },
+  "issues": {
+    "triage_label": "autotriaged",
+    "query": "-label:autotriaged",
+    "auto_models": ["claude-haiku", "gemini-flash", "glm-ollama"]
+  },
+  "autonomous": {
+    "debt_models": ["claude-haiku", "gemini-flash", "glm-ollama"],
+    "review_model": "codex",
+    "create_draft_pr": true,
+    "stop_before_merge": true
   },
   "learning": {
     "enabled": true,
