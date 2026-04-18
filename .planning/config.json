@@ -4,7 +4,12 @@
     "claude-opus": {
       "provider": "anthropic",
       "model_id": "claude-opus-4-5-20251101",
-      "capabilities": ["judgment", "architecture", "complex-reasoning", "code-review"],
+      "capabilities": [
+        "judgment",
+        "architecture",
+        "complex-reasoning",
+        "code-review"
+      ],
       "cost_tier": "high",
       "check_command": null,
       "metadata": {
@@ -19,7 +24,11 @@
     "claude-sonnet": {
       "provider": "anthropic",
       "model_id": "claude-sonnet-4-20250514",
-      "capabilities": ["implementation", "bulk-coding", "research"],
+      "capabilities": [
+        "implementation",
+        "bulk-coding",
+        "research"
+      ],
       "cost_tier": "medium",
       "check_command": null,
       "metadata": {
@@ -34,7 +43,11 @@
     "claude-haiku": {
       "provider": "anthropic",
       "model_id": "claude-haiku-3-5-20241022",
-      "capabilities": ["formatting", "classification", "trivial-tasks"],
+      "capabilities": [
+        "formatting",
+        "classification",
+        "trivial-tasks"
+      ],
       "cost_tier": "low",
       "check_command": null,
       "metadata": {
@@ -49,7 +62,11 @@
     "gemini-flash": {
       "provider": "google",
       "model_id": "gemini-2.5-flash",
-      "capabilities": ["scaffolding", "simple-impl", "formatting"],
+      "capabilities": [
+        "scaffolding",
+        "simple-impl",
+        "formatting"
+      ],
       "cost_tier": "free",
       "check_command": "which gemini",
       "metadata": {
@@ -64,7 +81,11 @@
     "codex": {
       "provider": "openai",
       "model_id": "o3",
-      "capabilities": ["tdd-cycle", "code-review", "complex-refactor"],
+      "capabilities": [
+        "tdd-cycle",
+        "code-review",
+        "complex-refactor"
+      ],
       "cost_tier": "medium",
       "check_command": "which codex",
       "metadata": {
@@ -79,7 +100,10 @@
     "glm-zai": {
       "provider": "zhipu",
       "model_id": "glm-5.1",
-      "capabilities": ["implementation", "bulk-coding"],
+      "capabilities": [
+        "implementation",
+        "bulk-coding"
+      ],
       "cost_tier": "low",
       "check_command": null,
       "endpoint": "https://api.z.ai/v1",
@@ -96,7 +120,10 @@
     "glm-ollama": {
       "provider": "ollama",
       "model_id": "glm-5.1",
-      "capabilities": ["implementation", "bulk-coding"],
+      "capabilities": [
+        "implementation",
+        "bulk-coding"
+      ],
       "cost_tier": "free",
       "check_command": "ollama list | grep -q glm",
       "notes": "Local inference, requires Ollama running",
@@ -111,13 +138,35 @@
     }
   },
   "task_routing": {
-    "impl": ["gemini-flash", "glm-ollama", "glm-zai", "claude-sonnet"],
-    "scaffold": ["gemini-flash", "glm-ollama"],
-    "tdd-cycle": ["codex", "claude-sonnet"],
-    "code-review": ["codex", "claude-opus"],
-    "complex-refactor": ["codex", "claude-opus"],
-    "judgment": ["claude-opus"],
-    "trivial": ["claude-haiku", "gemini-flash"]
+    "impl": [
+      "gemini-flash",
+      "glm-ollama",
+      "glm-zai",
+      "claude-sonnet"
+    ],
+    "scaffold": [
+      "gemini-flash",
+      "glm-ollama"
+    ],
+    "tdd-cycle": [
+      "codex",
+      "claude-sonnet"
+    ],
+    "code-review": [
+      "codex",
+      "claude-opus"
+    ],
+    "complex-refactor": [
+      "codex",
+      "claude-opus"
+    ],
+    "judgment": [
+      "claude-opus"
+    ],
+    "trivial": [
+      "claude-haiku",
+      "gemini-flash"
+    ]
   },
   "escalation": {
     "enabled": true,
@@ -131,9 +180,22 @@
       "token_exhausted": true
     },
     "chain": {
-      "default": ["gemini-flash", "glm-ollama", "glm-zai", "codex", "claude-sonnet", "claude-opus"],
-      "code-review": ["codex", "claude-opus"],
-      "judgment": ["claude-sonnet", "claude-opus"]
+      "default": [
+        "gemini-flash",
+        "glm-ollama",
+        "glm-zai",
+        "codex",
+        "claude-sonnet",
+        "claude-opus"
+      ],
+      "code-review": [
+        "codex",
+        "claude-opus"
+      ],
+      "judgment": [
+        "claude-sonnet",
+        "claude-opus"
+      ]
     }
   },
   "review": {
@@ -160,10 +222,18 @@
   "issues": {
     "triage_label": "autotriaged",
     "query": "-label:autotriaged",
-    "auto_models": ["claude-haiku", "gemini-flash", "glm-ollama"]
+    "auto_models": [
+      "claude-haiku",
+      "gemini-flash",
+      "glm-ollama"
+    ]
   },
   "autonomous": {
-    "debt_models": ["claude-haiku", "gemini-flash", "glm-ollama"],
+    "debt_models": [
+      "claude-haiku",
+      "gemini-flash",
+      "glm-ollama"
+    ],
     "review_model": "codex",
     "create_draft_pr": true,
     "stop_before_merge": true
@@ -171,6 +241,16 @@
   "learning": {
     "enabled": true,
     "log_file": ".planning/delegation-log.jsonl",
-    "outcome_fields": ["task_type", "model", "success", "escalation_count", "tokens_used", "duration_ms"]
+    "outcome_fields": [
+      "task_type",
+      "model",
+      "success",
+      "escalation_count",
+      "tokens_used",
+      "duration_ms"
+    ]
+  },
+  "workflow": {
+    "_auto_chain_active": false
   }
 }
