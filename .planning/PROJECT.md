@@ -12,6 +12,11 @@ A workflow system where the right model handles each task — delegating simple 
 2. **Config over hardcode** — conventions live in `.planning/config.json`, not scattered across YAMLs
 3. **Escalation with learnings** — when a model fails, the escalation carries context about what was tried
 4. **Feedback closes the loop** — outcomes feed back into routing decisions
+5. **Autonomous by default** — if something can be done autonomously, do it:
+   - Don't ask for credentials that exist in accessible config files
+   - Install CLIs once, auth once — not per-request
+   - Prefer programmatic access over manual steps
+   - Surface decisions, not tasks that could be automated
 
 ## Model Ecosystem
 
