@@ -42,3 +42,41 @@ source ~/dev/.meta/bin/lib/escalation.sh   # Load functions
 - Output preview truncated to 100 lines ✓
 - Failure explanations tailored to signal type ✓
 - History recorder creates valid JSONL ✓
+
+## Task 3: Escalation Chain Walker (Complete)
+
+**File:** `~/dev/.meta/bin/lib/escalation.sh`
+**Lines:** 312 (total)
+**Functions added:**
+- `execute_with_escalation()` - Main public entry point for escalation
+- `_validate_escalation_chain()` - Validates chain has no duplicates, ends with capable model
+
+**Key features:**
+- Reads escalation chain from config.json via read_config()
+- Walks chain from initial_model position to end
+- Calls execute_model() for each attempt
+- Detects all signals (loop, test_failure, token_exhaustion, quota, timeout, explicit_failure)
+- Builds accumulated handoff context on each failure
+- Records escalation_count to {output_file}.escalation_count
+- Implements immediate escalation (D-07)
+- Implements chain exhaustion handling (D-08)
+- No cooldown between attempts (D-09)
+
+**Dependencies verified:**
+- execute_model() from execution.sh ✓
+- read_config() from ai-delegate ✓
+- All signal detection functions ✓
+- Handoff builder ✓
+- Output history recorder ✓
+
+**All success criteria met:**
+- escalation.sh has valid Bash syntax ✓
+- All 8 functions present ✓
+- execute_with_escalation is public entry point ✓
+- Loop detection uses difflib.SequenceMatcher with 0.85 threshold ✓
+- Test failure detection uses regex patterns ✓
+- Token exhaustion detection uses regex patterns ✓
+- Handoff builder produces structured markdown per D-06 ✓
+- Chain walker implements immediate escalation (D-07) ✓
+- Chain exhaustion returns 1 with count available (D-08) ✓
+- File has 312 lines (exceeds 250+ requirement) ✓
