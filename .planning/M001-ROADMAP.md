@@ -45,8 +45,8 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Create module libraries (routing.sh, execution.sh, logging.sh)
-- [ ] 02-02-PLAN.md — Rewrite ai-delegate CLI with modules and -v flag
+- [x] 02-01-PLAN.md — Create module libraries (routing.sh, execution.sh, logging.sh)
+- [x] 02-02-PLAN.md — Rewrite ai-delegate CLI with modules and -v flag
 
 **Deliverables**:
 - Complexity scoring heuristics (keywords, file count, test presence, etc.)
@@ -67,6 +67,16 @@ Plans:
 
 **Intent**: Detect when a model is failing or looping, and escalate to a more capable model with context about what was tried.
 
+**Goal**: Failure detection (loop/test-failure/token-exhaustion), structured markdown handoff protocol, and escalation chain walking with feedback integration.
+
+**Requirements:** D-01 through D-12
+
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Create escalation.sh module (signal detection, handoff builder, chain walker)
+- [ ] 03-02-PLAN.md — Integrate escalation into ai-delegate + extend logging.sh
+
 **Signals**:
 - Explicit failure (non-zero exit, error output)
 - Loop detection (N similar outputs in a row)
@@ -81,7 +91,10 @@ Plans:
 
 **Key Files**:
 - `~/dev/.meta/bin/ai-delegate` (UPDATE)
-- `.planning/config.json` — `escalation` section (CREATE)
+- `~/dev/.meta/bin/lib/escalation.sh` (CREATE)
+- `~/dev/.meta/bin/lib/logging.sh` (UPDATE)
+- `.planning/config.json` — `escalation` section (EXISTS)
+- `.planning/escalation-log.jsonl` (CREATE)
 
 ---
 
