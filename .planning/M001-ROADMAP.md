@@ -14,6 +14,7 @@
 | 08 | Local-Only Mode | 05 | Medium |
 | 09 | Autonomous DEBT Processing | 02, 05, 08 | High |
 | 10 | Autonomous Issue Processing | 09 | Medium |
+| 11 | Automatic Quota Management | 03 | High |
 
 ---
 
@@ -252,4 +253,43 @@ Plans:
 - Phase 09 needs 02, 05, 08 (routing, review, local fallback all available)
 - Phase 10 needs 09 (same pattern, just different source)
 
-Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05 → 07 → 08 → 09 → 10
+Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05 → 07 → 08 → 09 → 10 → 11
+
+---
+
+## Phase 11: Automatic Quota Management
+
+**Intent**: Autonomous quota handling via local LLM (Gemma 4) that parses quota/rate-limit errors, waits for replenishment, and fails over to non-exhausted models — making the system truly self-healing without human intervention.
+
+**Requirements**:
+- **Q-01**: Quota error detection — parse timeout, 429, rate-limit responses across all backends
+- **Q-02**: Auto-retry with backoff — local LLM determines wait time from error message, resubmits automatically
+- **Q-03**: Intelligent failover — when one model exhausts quota, cascade to available models based on task compatibility
+- **Q-04**: Task-specific constraints — some tasks (complex planning) locked to Opus-only; others can cascade freely
+- **Q-05**: Model version pinning — config to restrict acceptable model versions per provider (e.g., z.ai → GLM-5.1 only, never GLM-4.6)
+- **Q-06**: Quota status tracking — in-memory state of which models are currently quota-limited and estimated recovery time
+
+**Signals for failover eligibility**:
+- Task type from `task_routing` config (impl, scaffold, review, etc.)
+- Current model's task constraint (Opus-only vs. flexible)
+- Available models with unexpired quota
+- Cost tier preference (prefer cheaper if task allows)
+
+**Local LLM role (Gemma 4)**:
+- Parse natural language error messages to extract wait times
+- Decide: wait-and-retry vs. failover to different model
+- Maintain quota state across session
+- Minimal footprint — runs locally, no API costs
+
+**Deliverables**:
+- Quota parser module in `lib/quota.sh`
+- Model constraint config: `task_routing.<type>.model_constraints: ["opus-only" | "flexible"]`
+- Model pinning config: `models.<provider>.allowed_versions: ["glm-5.1"]`
+- Gemma 4 integration for error parsing and decision making
+- Quota state tracking with TTL-based recovery
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/quota.sh` (CREATE) — quota parsing, state, recovery
+- `~/dev/.meta/bin/gemma-parse` (CREATE) — local LLM wrapper for error parsing
+- `.planning/config.json` — `quota_management`, `model_constraints`, `model_pinning` sections (UPDATE)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE) — integrate quota handling into execution loop
