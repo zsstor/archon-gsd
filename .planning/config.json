@@ -91,9 +91,10 @@
     }
   },
   "phase_conventions": {
-    "cleanup_series": 999,
-    "backlog_series": 9999,
-    "decimal_suffix_start": 1
+    "cleanup_prefix": "DEBT",
+    "backlog_prefix": "PARK",
+    "decimal_suffix_start": 1,
+    "scope": "milestone"
   },
   "learning": {
     "enabled": true,

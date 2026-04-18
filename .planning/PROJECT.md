@@ -29,5 +29,19 @@ A workflow system where the right model handles each task — delegating simple 
 
 - `01-99`: Sequential implementation phases
 - `XX.1, XX.2, ...`: Decimal phases for remediation/hotfixes inserted mid-milestone
-- `999.x`: Cleanup backlog — non-blocking issues that need attention but aren't urgent
-- `9999.x`: Parking lot — ideas awaiting prioritization into sequential phases
+- `DEBT.x`: Deferred technical debt — non-blocking issues that need attention but aren't urgent
+- `PARK.x`: Parking lot — ideas awaiting prioritization into sequential phases
+
+### Lifecycle
+
+**DEBT.x (Technical Debt)**
+- `DEBT.1` is a catch-all for deferred items during current milestone
+- When all items in `DEBT.1` are done, close it
+- Next deferral creates `DEBT.2` (manual increment)
+- Milestone-scoped: lives in `.planning/milestones/M001-phases/DEBT.1-cleanup/`
+
+**PARK.x (Parking Lot)**
+- `PARK.1` holds ideas awaiting prioritization
+- A `PARK.x` phase **completes when promoted** to a sequential phase (e.g., moved to phase 12)
+- The promotion is the completion — no separate close action needed
+- Milestone-scoped: can be promoted to current or future milestone
