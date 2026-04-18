@@ -496,22 +496,22 @@ session_id() {
 - A3: Existing ai-delegate has no tests, works fine (MEDIUM confidence — technical debt acknowledged)
 - A4: JSONL format recovers from interleaved lines, each line independent (HIGH confidence for low concurrency, LOW for high concurrency)
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **What threshold values trigger auto-upgrade?**
    - What we know: Research shows adaptive thresholds avoid manual tuning, but no standard values
    - What's unclear: Specific failure rate % or escalation count N that triggers keyword → keyword+files upgrade
-   - Recommendation: Start with failure_rate > 0.3 (30%) OR escalation_count > 2 per task type, tune based on observed data
+   - **RESOLVED:** Start with failure_rate > 0.3 (30%) OR escalation_count > 2 per task type, tune based on observed data
 
 2. **How long to cache history in memory?**
    - What we know: Re-reading delegation-log.jsonl on every routing decision is slow
    - What's unclear: Memory footprint of caching last N entries, invalidation strategy
-   - Recommendation: Cache last 1000 entries in session, refresh every 100 routing decisions or if log modified timestamp changes
+   - **RESOLVED:** Cache last 1000 entries in session, refresh every 100 routing decisions or if log modified timestamp changes
 
 3. **Should scoring mode persist across sessions?**
    - What we know: Task types auto-upgrade scoring modes during session
    - What's unclear: Does scoring mode reset to keyword on next ai-delegate invocation, or persist via config?
-   - Recommendation: Persist in config.json under `task_routing.<type>.scoring_mode`, default to keyword for new types
+   - **RESOLVED:** Persist in config.json under `task_routing.<type>.scoring_mode`, default to keyword for new types
 
 ## Environment Availability
 
