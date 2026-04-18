@@ -546,22 +546,19 @@ EOF
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should loop detection compare against ALL history or just last N attempts?**
    - What we know: D-01 specifies "last N outputs", config has `escalation.signals.loop_detection.threshold: 3`
-   - What's unclear: Is N=3 sufficient? Or should it be configurable per task type?
-   - Recommendation: Start with N=3 (config default), make it configurable if task types show different loop patterns (e.g., scaffold might loop faster than complex refactors)
+   - **RESOLVED:** Use N=3 (config default). Can be made configurable per task type in Phase 07 if loop patterns differ by task type.
 
 2. **How should penalty weight differ for different escalation signals?**
    - What we know: D-10 says "weighted failure", Claude's discretion on exact weight
-   - What's unclear: Should loop (model's fault) weigh the same as timeout (task complexity)?
-   - Recommendation: Start with uniform weight (escalation_count increments by 1 regardless of signal), differentiate in Phase 07 if data shows different signals predict future failures differently
+   - **RESOLVED:** Use uniform weight (escalation_count increments by 1 regardless of signal). Differentiate weights in Phase 07 if data shows different signals predict future failures differently.
 
 3. **When should escalation logs rotate/archive?**
    - What we know: D-12 says preserve full logs, logging.sh has rotation at 10,000 lines for delegation-log.jsonl
-   - What's unclear: Should escalation-log.jsonl have same rotation threshold?
-   - Recommendation: Same rotation policy (10,000 lines, archive to .jsonl.gz), but escalation logs likely grow slower (fewer events than routing decisions)
+   - **RESOLVED:** Same rotation policy as delegation-log.jsonl (10,000 lines, archive to .jsonl.gz). Escalation logs grow slower (fewer events than routing decisions).
 
 ## Environment Availability
 
