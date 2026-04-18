@@ -37,6 +37,16 @@
 
 **Intent**: Given a task description, route it to the best available model based on complexity, task type, and history.
 
+**Goal**: Intelligent routing system with complexity scoring (keyword/keyword+files/full modes), time-decayed history learning, and clean module architecture (routing.sh, execution.sh, logging.sh).
+
+**Requirements:** D-01 through D-15
+
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Create module libraries (routing.sh, execution.sh, logging.sh)
+- [ ] 02-02-PLAN.md — Rewrite ai-delegate CLI with modules and -v flag
+
 **Deliverables**:
 - Complexity scoring heuristics (keywords, file count, test presence, etc.)
 - History check: has this task type failed on cheaper models before?
@@ -45,7 +55,10 @@
 
 **Key Files**:
 - `~/dev/.meta/bin/ai-delegate` (UPDATE)
-- `.planning/config.json` — `task_routing` section (UPDATE)
+- `~/dev/.meta/bin/lib/routing.sh` (CREATE)
+- `~/dev/.meta/bin/lib/execution.sh` (CREATE)
+- `~/dev/.meta/bin/lib/logging.sh` (CREATE)
+- `.planning/config.json` — `task_routing` and `scoring_defaults` sections (UPDATE)
 
 ---
 
