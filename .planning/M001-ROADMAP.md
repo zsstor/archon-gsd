@@ -306,3 +306,24 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 - `~/dev/.meta/bin/gemma-parse` (CREATE) — local LLM wrapper for error parsing
 - `.planning/config.json` — `quota_management`, `model_constraints`, `model_pinning` sections (UPDATE)
 - `~/dev/.meta/bin/ai-delegate` (UPDATE) — integrate quota handling into execution loop
+
+---
+
+## Backlog
+
+### Phase 999.1: Parallel Session Orchestration (BACKLOG)
+
+**Goal:** Support multiple concurrent execution sessions with git worktrees. Consolidate 5-terminal workflow to 1-2 terminals. Human inflection points (approvals, completions, decisions) bubble up to a planning terminal while execution continues in background.
+
+**Key Features:**
+- Git worktree support for isolated parallel work branches
+- Background execution with status bubbling to main terminal
+- Human decision points queue and surface when needed
+- Wave-level parallelization (multiple plans execute simultaneously)
+- Session management (pause, resume, switch focus)
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
