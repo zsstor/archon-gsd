@@ -327,3 +327,21 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+
+### Phase 999.2: Archon Built-in Processes Audit (BACKLOG)
+
+**Goal:** Inspect Archon's native processes, workflows, and utilities to determine which should be adopted vs. kept separate. Evaluate overlap with GSD workflows and identify opportunities for consolidation or reuse.
+
+**Key Questions:**
+- What workflows does Archon provide natively?
+- Which Archon features overlap with GSD skills?
+- Are there Archon utilities we should adopt instead of custom implementations?
+- Where should GSD defer to Archon vs. provide its own approach?
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
