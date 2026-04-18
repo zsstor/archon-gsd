@@ -6,35 +6,75 @@
       "model_id": "claude-opus-4-5-20251101",
       "capabilities": ["judgment", "architecture", "complex-reasoning", "code-review"],
       "cost_tier": "high",
-      "check_command": null
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
     },
     "claude-sonnet": {
       "provider": "anthropic",
       "model_id": "claude-sonnet-4-20250514",
       "capabilities": ["implementation", "bulk-coding", "research"],
       "cost_tier": "medium",
-      "check_command": null
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
     },
     "claude-haiku": {
       "provider": "anthropic",
       "model_id": "claude-haiku-3-5-20241022",
       "capabilities": ["formatting", "classification", "trivial-tasks"],
       "cost_tier": "low",
-      "check_command": null
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
     },
     "gemini-flash": {
       "provider": "google",
       "model_id": "gemini-2.5-flash",
       "capabilities": ["scaffolding", "simple-impl", "formatting"],
       "cost_tier": "free",
-      "check_command": "which gemini"
+      "check_command": "which gemini",
+      "metadata": {
+        "max_input_tokens": 1000000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
     },
     "codex": {
       "provider": "openai",
       "model_id": "o3",
       "capabilities": ["tdd-cycle", "code-review", "complex-refactor"],
       "cost_tier": "medium",
-      "check_command": "which codex"
+      "check_command": "which codex",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 32768,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
     },
     "glm-zai": {
       "provider": "zhipu",
@@ -43,7 +83,15 @@
       "cost_tier": "low",
       "check_command": null,
       "endpoint": "https://api.z.ai/v1",
-      "notes": "Cloud API, direct access without OpenCode wrapper"
+      "notes": "Cloud API, direct access without OpenCode wrapper",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": false,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
     },
     "glm-ollama": {
       "provider": "ollama",
@@ -51,7 +99,15 @@
       "capabilities": ["implementation", "bulk-coding"],
       "cost_tier": "free",
       "check_command": "ollama list | grep -q glm",
-      "notes": "Local inference, requires Ollama running"
+      "notes": "Local inference, requires Ollama running",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": false,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
     }
   },
   "task_routing": {
