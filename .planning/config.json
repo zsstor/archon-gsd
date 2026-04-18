@@ -115,7 +115,14 @@
         "supports_images": false,
         "supports_streaming": true,
         "supports_caching": false
-      }
+      },
+      "allowed_versions": [
+        "glm-5.1"
+      ],
+      "forbidden_versions": [
+        "glm-4.6",
+        "glm-4.5"
+      ]
     },
     "glm-ollama": {
       "provider": "ollama",
@@ -138,12 +145,16 @@
     }
   },
   "task_routing": {
-    "impl": [
-      "gemini-flash",
-      "glm-ollama",
-      "glm-zai",
-      "claude-sonnet"
-    ],
+    "impl": {
+      "models": [
+        "gemini-flash",
+        "glm-ollama",
+        "glm-zai",
+        "claude-sonnet"
+      ],
+      "scoring_mode": "keyword+files",
+      "model_constraints": "tier-2-minimum"
+    },
     "scaffold": [
       "gemini-flash",
       "glm-ollama"
@@ -152,17 +163,23 @@
       "codex",
       "claude-sonnet"
     ],
-    "code-review": [
-      "codex",
-      "claude-opus"
-    ],
+    "code-review": {
+      "models": [
+        "codex",
+        "claude-opus"
+      ],
+      "model_constraints": "cross-family-preferred"
+    },
     "complex-refactor": [
       "codex",
       "claude-opus"
     ],
-    "judgment": [
-      "claude-opus"
-    ],
+    "judgment": {
+      "models": [
+        "claude-opus"
+      ],
+      "model_constraints": "opus-only"
+    },
     "trivial": [
       "claude-haiku",
       "gemini-flash"
@@ -251,7 +268,7 @@
     ]
   },
   "workflow": {
-    "_auto_chain_active": false
+    "_auto_chain_active": true
   },
   "scoring_defaults": {
     "initial_mode": "keyword",
@@ -285,5 +302,13 @@
         "auth"
       ]
     }
+  },
+  "quota_management": {
+    "enabled": true,
+    "max_wait_seconds": 900,
+    "default_backoff_base": 2,
+    "default_backoff_max": 300,
+    "parse_model": "glm-5.1:cloud",
+    "state_dir": "/tmp/quota-state"
   }
 }
