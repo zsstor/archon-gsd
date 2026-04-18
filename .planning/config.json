@@ -1,0 +1,103 @@
+{
+  "version": "M001",
+  "models": {
+    "claude-opus": {
+      "provider": "anthropic",
+      "model_id": "claude-opus-4-5-20251101",
+      "capabilities": ["judgment", "architecture", "complex-reasoning", "code-review"],
+      "cost_tier": "high",
+      "check_command": null
+    },
+    "claude-sonnet": {
+      "provider": "anthropic",
+      "model_id": "claude-sonnet-4-20250514",
+      "capabilities": ["implementation", "bulk-coding", "research"],
+      "cost_tier": "medium",
+      "check_command": null
+    },
+    "claude-haiku": {
+      "provider": "anthropic",
+      "model_id": "claude-haiku-3-5-20241022",
+      "capabilities": ["formatting", "classification", "trivial-tasks"],
+      "cost_tier": "low",
+      "check_command": null
+    },
+    "gemini-flash": {
+      "provider": "google",
+      "model_id": "gemini-2.5-flash",
+      "capabilities": ["scaffolding", "simple-impl", "formatting"],
+      "cost_tier": "free",
+      "check_command": "which gemini"
+    },
+    "codex": {
+      "provider": "openai",
+      "model_id": "o3",
+      "capabilities": ["tdd-cycle", "code-review", "complex-refactor"],
+      "cost_tier": "medium",
+      "check_command": "which codex"
+    },
+    "glm-zai": {
+      "provider": "zhipu",
+      "model_id": "glm-5.1",
+      "capabilities": ["implementation", "bulk-coding"],
+      "cost_tier": "low",
+      "check_command": null,
+      "endpoint": "https://api.z.ai/v1",
+      "notes": "Cloud API, direct access without OpenCode wrapper"
+    },
+    "glm-ollama": {
+      "provider": "ollama",
+      "model_id": "glm-5.1",
+      "capabilities": ["implementation", "bulk-coding"],
+      "cost_tier": "free",
+      "check_command": "ollama list | grep -q glm",
+      "notes": "Local inference, requires Ollama running"
+    }
+  },
+  "task_routing": {
+    "impl": ["gemini-flash", "glm-ollama", "glm-zai", "claude-sonnet"],
+    "scaffold": ["gemini-flash", "glm-ollama"],
+    "tdd-cycle": ["codex", "claude-sonnet"],
+    "code-review": ["codex", "claude-opus"],
+    "complex-refactor": ["codex", "claude-opus"],
+    "judgment": ["claude-opus"],
+    "trivial": ["claude-haiku", "gemini-flash"]
+  },
+  "escalation": {
+    "enabled": true,
+    "signals": {
+      "explicit_failure": true,
+      "loop_detection": {
+        "enabled": true,
+        "threshold": 3
+      },
+      "test_failure": true,
+      "token_exhausted": true
+    },
+    "chain": {
+      "default": ["gemini-flash", "glm-ollama", "glm-zai", "codex", "claude-sonnet", "claude-opus"],
+      "code-review": ["codex", "claude-opus"],
+      "judgment": ["claude-sonnet", "claude-opus"]
+    }
+  },
+  "review": {
+    "default_reviewer": "codex",
+    "self_review_forbidden": true,
+    "post_to_pr": true,
+    "finding_routing": {
+      "blocking": "escalate_or_remediate",
+      "non_blocking_simple": "feed_back",
+      "non_blocking_decision": "cleanup_phase"
+    }
+  },
+  "phase_conventions": {
+    "cleanup_series": 999,
+    "backlog_series": 9999,
+    "decimal_suffix_start": 1
+  },
+  "learning": {
+    "enabled": true,
+    "log_file": ".planning/delegation-log.jsonl",
+    "outcome_fields": ["task_type", "model", "success", "escalation_count", "tokens_used", "duration_ms"]
+  }
+}
