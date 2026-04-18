@@ -341,6 +341,36 @@ Plans:
 
 ---
 
+## Phase 11.1: PR 1 Review Fixes (INSERTED)
+
+**Goal:** Fix critical and warning issues from Phase 11 code review before merging PR #1.
+
+**Findings to Fix:**
+
+| ID | Severity | Issue | File |
+|----|----------|-------|------|
+| CR-01 | Critical | Command injection in `_validate_escalation_chain` via heredoc | escalation.sh:420-442 |
+| WR-02 | Warning | Race condition in history file append (use flock) | escalation.sh:199-200 |
+| WR-03 | Warning | Missing python3 availability check before heredoc | quota.sh:152 |
+| WR-04 | Warning | Shell variable interpolation in logging.sh Python heredocs | logging.sh:89-104 |
+| WR-05 | Warning | Unbounded parallel process spawning (add MAX_PARALLEL) | ai-delegate:414-434 |
+
+**Requirements**: R-11.1-01 through R-11.1-05
+**Depends on:** Phase 11
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 11.1-01-PLAN.md — Fix all 5 review findings (CR-01, WR-02, WR-03, WR-04, WR-05)
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/escalation.sh` (UPDATE - CR-01, WR-02)
+- `~/dev/.meta/bin/lib/quota.sh` (UPDATE - WR-03)
+- `~/dev/.meta/bin/lib/logging.sh` (UPDATE - WR-04)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE - WR-05)
+
+---
+
 ## Backlog
 
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
