@@ -301,15 +301,18 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 
 ## Phase 11: Automatic Quota Management
 
-**Intent**: Autonomous quota handling via local LLM (Gemma 4) that parses quota/rate-limit errors, waits for replenishment, and fails over to non-exhausted models — making the system truly self-healing without human intervention.
+**Intent**: Autonomous quota handling via local LLM that parses quota/rate-limit errors, waits for replenishment, and fails over to non-exhausted models — making the system truly self-healing without human intervention.
 
-**Requirements**:
-- **Q-01**: Quota error detection — parse timeout, 429, rate-limit responses across all backends
-- **Q-02**: Auto-retry with backoff — local LLM determines wait time from error message, resubmits automatically
-- **Q-03**: Intelligent failover — when one model exhausts quota, cascade to available models based on task compatibility
-- **Q-04**: Task-specific constraints — some tasks (complex planning) locked to Opus-only; others can cascade freely
-- **Q-05**: Model version pinning — config to restrict acceptable model versions per provider (e.g., z.ai → GLM-5.1 only, never GLM-4.6)
-- **Q-06**: Quota status tracking — in-memory state of which models are currently quota-limited and estimated recovery time
+**Goal**: Eliminate overnight hangs by gracefully waiting for quota recovery and auto-resuming. Tier-aware failover ensures quality is never downgraded.
+
+**Requirements:** Q-01, Q-02, Q-03, Q-04, Q-05, Q-06
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 11-00-PLAN.md — Wave 0: Create test_quota.sh and mock error fixtures
+- [ ] 11-01-PLAN.md — Create quota.sh module (parsing, state, failover, constraints)
+- [ ] 11-02-PLAN.md — Integrate quota handling into escalation.sh and ai-delegate
 
 **Signals for failover eligibility**:
 - Task type from `task_routing` config (impl, scaffold, review, etc.)
@@ -317,7 +320,7 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 - Available models with unexpired quota
 - Cost tier preference (prefer cheaper if task allows)
 
-**Local LLM role (Gemma 4)**:
+**Local LLM role (GLM-5.1 via Ollama)**:
 - Parse natural language error messages to extract wait times
 - Decide: wait-and-retry vs. failover to different model
 - Maintain quota state across session
@@ -327,7 +330,7 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 - Quota parser module in `lib/quota.sh`
 - Model constraint config: `task_routing.<type>.model_constraints: ["opus-only" | "flexible"]`
 - Model pinning config: `models.<provider>.allowed_versions: ["glm-5.1"]`
-- Gemma 4 integration for error parsing and decision making
+- Local LLM integration for error parsing and decision making
 - Quota state tracking with TTL-based recovery
 
 **Key Files**:
