@@ -252,5 +252,38 @@
   },
   "workflow": {
     "_auto_chain_active": false
+  },
+  "scoring_defaults": {
+    "initial_mode": "keyword",
+    "upgrade_thresholds": {
+      "failure_rate": 0.3,
+      "escalation_count": 2
+    },
+    "complexity_thresholds": {
+      "low": 40,
+      "high": 70
+    },
+    "history": {
+      "half_life_days": 7,
+      "max_age_days": 30,
+      "cold_start_prior": 0.5,
+      "min_entries_for_confidence": 5
+    },
+    "keyword_weights": {
+      "high": [
+        "refactor",
+        "migrate",
+        "architect",
+        "multi-file",
+        "complex"
+      ],
+      "medium": [
+        "test",
+        "integrate",
+        "api",
+        "database",
+        "auth"
+      ]
+    }
   }
 }
