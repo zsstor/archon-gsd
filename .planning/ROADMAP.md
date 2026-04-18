@@ -14,7 +14,7 @@
 | 08 | Local-Only Mode | 05 | Medium |
 | 09 | Autonomous DEBT Processing | 02, 05, 08 | High |
 | 10 | Autonomous Issue Processing | 09 | Medium |
-| 11 | Automatic Quota Management | 03 | High |
+| 11 | 3/3 | Complete    | 2026-04-18 |
 
 ---
 
@@ -307,12 +307,12 @@ Suggested execution order for serial work: 01 → 06 → 04 → 02 → 03 → 05
 
 **Requirements:** Q-01, Q-02, Q-03, Q-04, Q-05, Q-06
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 11-00-PLAN.md — Wave 0: Create test_quota.sh and mock error fixtures
-- [ ] 11-01-PLAN.md — Create quota.sh module (parsing, state, failover, constraints)
-- [ ] 11-02-PLAN.md — Integrate quota handling into escalation.sh and ai-delegate
+- [x] 11-00-PLAN.md — Wave 0: Create test_quota.sh and mock error fixtures
+- [x] 11-01-PLAN.md — Create quota.sh module (parsing, state, failover, constraints)
+- [x] 11-02-PLAN.md — Integrate quota handling into escalation.sh and ai-delegate
 
 **Signals for failover eligibility**:
 - Task type from `task_routing` config (impl, scaffold, review, etc.)
