@@ -98,6 +98,32 @@ Plans:
 
 ---
 
+## Phase 03.1: PR 1 Review Fixes (INSERTED)
+
+**Intent**: Fix critical issues found by Codex code review before merging PR 1.
+
+**Goal**: Address P1 blockers (function order, set -e breaking escalation) and P2 warnings (missing log path, unsanitized routing descriptions).
+
+**Requirements:** From Codex review findings
+
+**Plans:** 1 plan
+
+**Findings to Fix:**
+
+| ID | Severity | Issue | File |
+|----|----------|-------|------|
+| P1-1 | Critical | `session_id` called before defined | ai-delegate:56 |
+| P1-2 | Critical | `set -e` breaks escalation loop | escalation.sh:269 |
+| P2-1 | Warning | Status command missing log path arg | ai-delegate:516 |
+| P2-2 | Warning | Routing decisions not sanitized | logging.sh:30 |
+
+**Key Files**:
+- `~/dev/.meta/bin/ai-delegate` (UPDATE)
+- `~/dev/.meta/bin/lib/escalation.sh` (UPDATE)
+- `~/dev/.meta/bin/lib/logging.sh` (UPDATE)
+
+---
+
 ## Phase 04: z.ai + Ollama Integration
 
 **Intent**: Add GLM-5.1 as a delegation target via both z.ai (cloud) and Ollama (local).
