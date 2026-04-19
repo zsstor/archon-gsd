@@ -390,6 +390,16 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 12: GSD to Zarchon Migration
+
+**Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to the new tool structure.
+**Requirements**: TBD
+**Depends on:** Phase 11.1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12 to break down)
+
 ---
 
 ### Phase 999.2: Archon Built-in Processes Audit (BACKLOG)
