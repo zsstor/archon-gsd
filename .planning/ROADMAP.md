@@ -378,11 +378,11 @@ Plans:
 **Requirements**: SEC-11.2-01, SEC-11.2-02, SEC-11.2-03, SEC-11.2-04, SEC-11.2-05, SEC-11.2-06
 **Depends on:** Phase 11.1
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 11.2-01-PLAN.md — Fix 5 heredoc vulnerabilities in logging.sh + expand credential sanitization
-- [ ] 11.2-02-PLAN.md — Fix read_config heredoc in ai-delegate + change flock fd to 9
+- [x] 11.2-01-PLAN.md — Fix 5 heredoc vulnerabilities in logging.sh + expand credential sanitization
+- [x] 11.2-02-PLAN.md — Fix read_config heredoc in ai-delegate + change flock fd to 9
 
 **Findings to Fix:**
 
