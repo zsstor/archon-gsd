@@ -432,12 +432,12 @@ Plans:
 **Requirements**: CR-01, CR-02, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08
 **Depends on:** Phase 11.3
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 11.4-00-PLAN.md — Create test suites (test_routing.sh, test_delegate.sh) for TDD validation
-- [ ] 11.4-01-PLAN.md — Fix routing.sh issues (CR-01, WR-01, WR-02, WR-03, WR-07)
-- [ ] 11.4-02-PLAN.md — Fix ai-delegate issues (CR-02, WR-04, WR-05, WR-06, WR-08)
+- [x] 11.4-00-PLAN.md — Create test suites (test_routing.sh, test_delegate.sh) for TDD validation
+- [x] 11.4-01-PLAN.md — Fix routing.sh issues (CR-01, WR-01, WR-02, WR-03, WR-07)
+- [x] 11.4-02-PLAN.md — Fix ai-delegate issues (CR-02, WR-04, WR-05, WR-06, WR-08)
 
 **Key Files**:
 - `~/dev/.meta/bin/lib/routing.sh` (UPDATE — CR-01, WR-01, WR-02, WR-03, IN-02, IN-04)
