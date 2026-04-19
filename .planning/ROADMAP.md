@@ -348,11 +348,11 @@ Plans:
 **Requirements**: CR-01, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, IN-01, IN-02
 **Depends on:** Phase 11
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 11.5-01-PLAN.md — Fix routing.sh, escalation.sh, execution.sh (CR-01, WR-03, WR-07, IN-01, IN-02)
-- [ ] 11.5-02-PLAN.md — Fix ai-delegate, logging.sh, quota.sh (WR-01, WR-02, WR-04, WR-05, WR-06)
+- [x] 11.5-01-PLAN.md — Fix routing.sh, escalation.sh, execution.sh (CR-01, WR-03, WR-07, IN-01, IN-02)
+- [x] 11.5-02-PLAN.md — Fix ai-delegate, logging.sh, quota.sh (WR-01, WR-02, WR-04, WR-05, WR-06)
 
 **Findings to Fix:**
 
