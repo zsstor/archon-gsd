@@ -71,11 +71,11 @@ Plans:
 
 **Requirements:** D-01 through D-12
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Create escalation.sh module (signal detection, handoff builder, chain walker)
-- [ ] 03-02-PLAN.md — Integrate escalation into ai-delegate + extend logging.sh
+- [x] 03-01-PLAN.md — Create escalation.sh module (signal detection, handoff builder, chain walker)
+- [x] 03-02-PLAN.md — Integrate escalation into ai-delegate + extend logging.sh
 
 **Signals**:
 - Explicit failure (non-zero exit, error output)
