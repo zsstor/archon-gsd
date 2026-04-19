@@ -197,7 +197,8 @@
         "codex",
         "claude-opus"
       ],
-      "scoring_mode": "keyword+files"
+      "scoring_mode": "keyword+files",
+      "model_constraints": "cross-family-preferred"
     }
   },
   "escalation": {
