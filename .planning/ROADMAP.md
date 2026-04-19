@@ -371,17 +371,38 @@ Plans:
 
 ---
 
-## Backlog
+## Phase 11.2: Security Pattern Remediation
 
-### Phase 11.2: Security Pattern Remediation (INSERTED)
+**Goal:** Fix remaining command injection vulnerabilities (CR-02 through CR-05) in logging.sh and ai-delegate by applying consistent env var + quoted heredoc pattern. Also fix WR-01 (flock fd collision) and WR-02 (incomplete credential sanitization).
 
-**Goal:** Fix remaining command injection vulnerabilities (CR-02 through CR-05) in logging.sh and ai-delegate by applying consistent env var + quoted heredoc pattern.
-**Requirements**: TBD
+**Requirements**: SEC-11.2-01, SEC-11.2-02, SEC-11.2-03, SEC-11.2-04, SEC-11.2-05, SEC-11.2-06
 **Depends on:** Phase 11.1
-**Plans:** 0 plans
+
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 11.2 to break down)
+- [ ] 11.2-01-PLAN.md — Fix 5 heredoc vulnerabilities in logging.sh + expand credential sanitization
+- [ ] 11.2-02-PLAN.md — Fix read_config heredoc in ai-delegate + change flock fd to 9
+
+**Findings to Fix:**
+
+| ID | Severity | Issue | File |
+|----|----------|-------|------|
+| CR-02 | Critical | Command injection in `query_history` | logging.sh:131 |
+| CR-03 | Critical | Command injection in `_apply_time_decay` | logging.sh:174 |
+| CR-04 | Critical | Command injection in `_compute_weighted_failure_rate` | logging.sh:203 |
+| CR-05 | Critical | Command injection in `read_config` | ai-delegate:107 |
+| WR-01 | Warning | File descriptor 200 collision risk | escalation.sh:200 |
+| WR-02 | Warning | Incomplete credential sanitization | logging.sh:266 |
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/logging.sh` (UPDATE - CR-02, CR-03, CR-04, WR-02)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE - CR-05)
+- `~/dev/.meta/bin/lib/escalation.sh` (UPDATE - WR-01)
+
+---
+
+## Backlog
 
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
