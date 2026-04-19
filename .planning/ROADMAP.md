@@ -423,6 +423,49 @@ Plans:
 
 ---
 
+## Phase 11.4: Code Review Fixes (routing.sh + ai-delegate)
+
+**Goal:** Address 15 code review findings from Phase 11.3 review: 2 critical security issues (command injection, unsafe .profile sourcing), 8 warnings (array bounds, non-atomic writes, missing checks), and 5 info items (error context, magic numbers, logging consistency).
+
+**Context:** Found during Phase 11.3 code review. These are pre-existing issues in routing.sh and ai-delegate, not introduced by 11.3 changes.
+
+**Requirements**: CR-01, CR-02, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08
+**Depends on:** Phase 11.3
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] (to be planned)
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/routing.sh` (UPDATE — CR-01, WR-01, WR-02, WR-03, IN-02, IN-04)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE — CR-02, WR-04, WR-05, WR-06, WR-08, IN-01, IN-03, IN-05)
+
+**Findings Summary**:
+
+Critical:
+- CR-01: Command injection via unescaped task_type in jq (routing.sh:55)
+- CR-02: Arbitrary code execution via .profile sourcing (ai-delegate:26)
+
+Warnings:
+- WR-01: Array access without bounds check (routing.sh:242-244)
+- WR-02: Non-atomic config file modification (routing.sh:358-387)
+- WR-03: Python dependency without fallback (routing.sh:195,200)
+- WR-04: Module source without existence check (ai-delegate:30-34)
+- WR-05: Task type inconsistency "review" vs "code-review" (ai-delegate:367)
+- WR-06: File read without permission check (ai-delegate:175-180)
+- WR-07: Datetime parsing without error handling (routing.sh:432-434)
+- WR-08: Large file inclusion in prompts (ai-delegate:318)
+
+Info:
+- IN-01: Missing error context in die() (ai-delegate:85)
+- IN-02: Magic numbers for complexity thresholds (routing.sh:241-244)
+- IN-03: Verbose logging inconsistency (ai-delegate:168-171)
+- IN-04: Incomplete variable validation (routing.sh:162-163)
+- IN-05: Unclear session ID cleanup (ai-delegate:75-78)
+
+---
+
 ## Phase 12: GSD to Zarchon Migration
 
 **Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to native Archon workflow execution with zsd-* naming.
