@@ -110,10 +110,10 @@ migration_status() {
 
   if is_zarchon_migrated "${project_root}"; then
     echo "zarchon"
-  elif is_gsd_project "${project_root}"; then
-    echo "gsd"
   elif is_partial_migration "${project_root}"; then
     echo "partial"
+  elif is_gsd_project "${project_root}"; then
+    echo "gsd"
   elif [ -d "${project_root}/.planning" ]; then
     echo "unknown"
   else
