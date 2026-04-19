@@ -1,0 +1,314 @@
+{
+  "version": "M001",
+  "models": {
+    "claude-opus": {
+      "provider": "anthropic",
+      "model_id": "claude-opus-4-5-20251101",
+      "capabilities": [
+        "judgment",
+        "architecture",
+        "complex-reasoning",
+        "code-review"
+      ],
+      "cost_tier": "high",
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
+    },
+    "claude-sonnet": {
+      "provider": "anthropic",
+      "model_id": "claude-sonnet-4-20250514",
+      "capabilities": [
+        "implementation",
+        "bulk-coding",
+        "research"
+      ],
+      "cost_tier": "medium",
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
+    },
+    "claude-haiku": {
+      "provider": "anthropic",
+      "model_id": "claude-haiku-3-5-20241022",
+      "capabilities": [
+        "formatting",
+        "classification",
+        "trivial-tasks"
+      ],
+      "cost_tier": "low",
+      "check_command": null,
+      "metadata": {
+        "max_input_tokens": 200000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": true
+      }
+    },
+    "gemini-flash": {
+      "provider": "google",
+      "model_id": "gemini-2.5-flash",
+      "capabilities": [
+        "scaffolding",
+        "simple-impl",
+        "formatting"
+      ],
+      "cost_tier": "free",
+      "check_command": "which gemini",
+      "metadata": {
+        "max_input_tokens": 1000000,
+        "max_output_tokens": 8192,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
+    },
+    "codex": {
+      "provider": "openai",
+      "model_id": "o3",
+      "capabilities": [
+        "tdd-cycle",
+        "code-review",
+        "complex-refactor"
+      ],
+      "cost_tier": "medium",
+      "check_command": "which codex",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 32768,
+        "supports_tools": true,
+        "supports_images": true,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
+    },
+    "glm-zai": {
+      "provider": "zhipu",
+      "model_id": "glm-5.1",
+      "capabilities": [
+        "implementation",
+        "bulk-coding"
+      ],
+      "cost_tier": "low",
+      "check_command": null,
+      "endpoint": "https://api.z.ai/v1",
+      "notes": "Cloud API, direct access without OpenCode wrapper",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": false,
+        "supports_streaming": true,
+        "supports_caching": false
+      },
+      "allowed_versions": [
+        "glm-5.1"
+      ],
+      "forbidden_versions": [
+        "glm-4.6",
+        "glm-4.5"
+      ]
+    },
+    "glm-ollama": {
+      "provider": "ollama",
+      "model_id": "glm-5.1",
+      "capabilities": [
+        "implementation",
+        "bulk-coding"
+      ],
+      "cost_tier": "free",
+      "check_command": "ollama list | grep -q glm",
+      "notes": "Local inference, requires Ollama running",
+      "metadata": {
+        "max_input_tokens": 128000,
+        "max_output_tokens": 4096,
+        "supports_tools": true,
+        "supports_images": false,
+        "supports_streaming": true,
+        "supports_caching": false
+      }
+    }
+  },
+  "task_routing": {
+    "impl": {
+      "models": [
+        "gemini-flash",
+        "glm-ollama",
+        "glm-zai",
+        "claude-sonnet"
+      ],
+      "scoring_mode": "keyword+files",
+      "model_constraints": "tier-2-minimum"
+    },
+    "scaffold": [
+      "gemini-flash",
+      "glm-ollama"
+    ],
+    "tdd-cycle": [
+      "codex",
+      "claude-sonnet"
+    ],
+    "code-review": {
+      "models": [
+        "codex",
+        "claude-opus"
+      ],
+      "model_constraints": "cross-family-preferred"
+    },
+    "complex-refactor": [
+      "codex",
+      "claude-opus"
+    ],
+    "judgment": {
+      "models": [
+        "claude-opus"
+      ],
+      "model_constraints": "opus-only"
+    },
+    "trivial": [
+      "claude-haiku",
+      "gemini-flash"
+    ]
+  },
+  "escalation": {
+    "enabled": true,
+    "signals": {
+      "explicit_failure": true,
+      "loop_detection": {
+        "enabled": true,
+        "threshold": 3
+      },
+      "test_failure": true,
+      "token_exhausted": true
+    },
+    "chain": {
+      "default": [
+        "gemini-flash",
+        "glm-ollama",
+        "glm-zai",
+        "codex",
+        "claude-sonnet",
+        "claude-opus"
+      ],
+      "code-review": [
+        "codex",
+        "claude-opus"
+      ],
+      "judgment": [
+        "claude-sonnet",
+        "claude-opus"
+      ]
+    }
+  },
+  "review": {
+    "default_reviewer": "codex",
+    "self_review_forbidden": true,
+    "post_to_pr": true,
+    "finding_routing": {
+      "blocking": "escalate_or_remediate",
+      "non_blocking_simple": "feed_back",
+      "non_blocking_decision": "cleanup_phase"
+    }
+  },
+  "phase_conventions": {
+    "cleanup_prefix": "DEBT",
+    "backlog_prefix": "PARK",
+    "issues_prefix": "WANT",
+    "decimal_suffix_start": 1,
+    "scope": "milestone"
+  },
+  "github": {
+    "enabled": true,
+    "fallback": "local"
+  },
+  "issues": {
+    "triage_label": "autotriaged",
+    "query": "-label:autotriaged",
+    "auto_models": [
+      "claude-haiku",
+      "gemini-flash",
+      "glm-ollama"
+    ]
+  },
+  "autonomous": {
+    "debt_models": [
+      "claude-haiku",
+      "gemini-flash",
+      "glm-ollama"
+    ],
+    "review_model": "codex",
+    "create_draft_pr": true,
+    "stop_before_merge": true
+  },
+  "learning": {
+    "enabled": true,
+    "log_file": ".planning/delegation-log.jsonl",
+    "outcome_fields": [
+      "task_type",
+      "model",
+      "success",
+      "escalation_count",
+      "tokens_used",
+      "duration_ms"
+    ]
+  },
+  "workflow": {
+    "_auto_chain_active": false
+  },
+  "scoring_defaults": {
+    "initial_mode": "keyword",
+    "upgrade_thresholds": {
+      "failure_rate": 0.3,
+      "escalation_count": 2
+    },
+    "complexity_thresholds": {
+      "low": 40,
+      "high": 70
+    },
+    "history": {
+      "half_life_days": 7,
+      "max_age_days": 30,
+      "cold_start_prior": 0.5,
+      "min_entries_for_confidence": 5
+    },
+    "keyword_weights": {
+      "high": [
+        "refactor",
+        "migrate",
+        "architect",
+        "multi-file",
+        "complex"
+      ],
+      "medium": [
+        "test",
+        "integrate",
+        "api",
+        "database",
+        "auth"
+      ]
+    }
+  },
+  "quota_management": {
+    "enabled": true,
+    "max_wait_seconds": 900,
+    "default_backoff_base": 2,
+    "default_backoff_max": 300,
+    "parse_model": "glm-5.1:cloud",
+    "state_dir": "/tmp/quota-state"
+  }
+}
