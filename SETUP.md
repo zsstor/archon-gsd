@@ -21,7 +21,7 @@ installer. The default install path is `/usr/local/bin` which needs sudo — the
 cd /path/to/your/project
 git clone https://github.com/adcadvance/archon-gsd.git /tmp/archon-gsd
 cp -r /tmp/archon-gsd/.archon .
-archon workflow list | grep gsd-         # expect 18 workflows listed
+archon workflow list | grep zsd-         # expect 18 workflows listed
 ```
 
 The `.archon/workflows/` directory can live alongside (or replace) whatever's
@@ -79,7 +79,7 @@ on):
 
 ```bash
 cd /path/to/your/project
-archon workflow run gsd-status ""        # read-only dashboard, minimal AI call
+archon workflow run zsd-status ""        # read-only dashboard, minimal AI call
 ```
 
 Expected: a dashboard that says "MILESTONE none active" and prints a
@@ -89,7 +89,7 @@ bundle is functional.
 To actually start using it:
 
 ```bash
-archon workflow run gsd-new-milestone "v1.0 — initial milestone"
+archon workflow run zsd-new-milestone "v1.0 — initial milestone"
 ```
 
 This starts the interactive Q&A flow documented in [README.md](./README.md).
@@ -101,11 +101,11 @@ This starts the interactive Q&A flow documented in [README.md](./README.md).
   that shadow `~/.archon/.env`. Most users are unaffected.
 - **`archon serve`**: Slack/Telegram/Discord platform adapters are hardcoded
   off in v0.3.6 (`skipPlatformAdapters: true`). Fixed on dev. Doesn't affect
-  `gsd-*` workflows — we only use the CLI invocation path.
+  `zsd-*` workflows — we only use the CLI invocation path.
 - **Loop-node model routing**: Archon silently drops per-node `model:` on
   loop nodes. This bundle works around that by declaring model at the
-  workflow top level for affected files (gsd-execute, gsd-discuss,
-  gsd-new-milestone, gsd-autonomous). Non-loop nodes still honor per-node
+  workflow top level for affected files (zsd-execute, zsd-discuss,
+  zsd-new-milestone, zsd-autonomous). Non-loop nodes still honor per-node
   `model:`.
 
 ## Troubleshooting
