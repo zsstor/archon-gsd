@@ -150,7 +150,7 @@ Plans:
 **Intent**: Enforce "models don't review their own code" by delegating code review to a different model (default: Codex), posting findings to PR, and routing issues.
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-review-pr.yaml`
+- New workflow: `.archon/workflows/zsd-review-pr.yaml`
 - Finding classification: BLOCKING vs NON-BLOCKING
 - PR comment posting via `gh pr comment`
 - Routing:
@@ -159,7 +159,7 @@ Plans:
 - Integration with existing `review-pr` skill logic
 
 **Key Files**:
-- `.archon/workflows/gsd-review-pr.yaml` (CREATE)
+- `.archon/workflows/zsd-review-pr.yaml` (CREATE)
 - `.planning/config.json` — `review` section (CREATE)
 
 ---
@@ -224,14 +224,14 @@ Plans:
   }
   ```
 - Local fallbacks:
-  - `gsd-review-pr` → `gsd-review-branch` (diff against main, REVIEW.md output)
+  - `zsd-review-pr` → `zsd-review-branch` (diff against main, REVIEW.md output)
   - `gh pr create` → skip, document in artifact
   - `gh pr comment` → append to local file
 - Every `gh` command has a local fallback path
 
 **Key Files**:
 - `.planning/config.json` (UPDATE) — github section
-- `.archon/workflows/gsd-review-pr.yaml` (UPDATE) — local mode branch
+- `.archon/workflows/zsd-review-pr.yaml` (UPDATE) — local mode branch
 - `~/dev/.meta/bin/local-pr` (CREATE) — local PR simulation
 
 ---
@@ -241,7 +241,7 @@ Plans:
 **Intent**: Use cheap async models to autonomously work DEBT items to a reviewable state.
 
 **Flow**:
-1. Invoke `gsd-process-debt` (manual or scheduled)
+1. Invoke `zsd-process-debt` (manual or scheduled)
 2. Cheap model (Haiku/Gemini/GLM) picks a DEBT.x item
 3. Implements fix on a branch
 4. Creates draft PR
@@ -249,13 +249,13 @@ Plans:
 6. Output: Draft PR with review comments, ready for human merge
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-process-debt.yaml`
+- New workflow: `.archon/workflows/zsd-process-debt.yaml`
 - Integration with draft PR creation
 - Codex review delegation
 - Stops before merge — human reviews final
 
 **Key Files**:
-- `.archon/workflows/gsd-process-debt.yaml` (CREATE)
+- `.archon/workflows/zsd-process-debt.yaml` (CREATE)
 - `.planning/config.json` — `autonomous` section (CREATE)
 
 ---
@@ -265,7 +265,7 @@ Plans:
 **Intent**: Triage GitHub issues into WANT.x planning artifacts using cheap models.
 
 **Flow**:
-1. Invoke `gsd-process-issues`
+1. Invoke `zsd-process-issues`
 2. Fetch open issues: `gh issue list --state open --search "-label:autotriaged"`
 3. For each issue → create `WANT.x` planning artifact
 4. Cheap model does triage: complexity estimate, affected files, draft approach
@@ -273,13 +273,13 @@ Plans:
 6. Output: `WANT.1-issue-42/WANT.1-TRIAGE.md` ready for review
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-process-issues.yaml`
+- New workflow: `.archon/workflows/zsd-process-issues.yaml`
 - WANT.x phase convention support
 - `autotriaged` label management
 - Triage artifact template
 
 **Key Files**:
-- `.archon/workflows/gsd-process-issues.yaml` (CREATE)
+- `.archon/workflows/zsd-process-issues.yaml` (CREATE)
 - `.planning/config.json` — `issues` section (CREATE)
 
 ---
@@ -402,6 +402,29 @@ Plans:
 
 ---
 
+## Phase 12: GSD to Zarchon Migration
+
+**Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to native Archon workflow execution with zsd-* naming.
+
+**Requirements**: D-01, D-03, D-04, D-06, D-07, D-08, D-09
+**Depends on:** Phase 11.1
+
+**Plans:** 2 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — Rename 18 workflow files gsd-* to zsd-*, update internal refs, add version field, update docs
+- [ ] 12-02-PLAN.md — Create migration detection utility (is_zarchon_migrated, is_gsd_project functions)
+
+**Key Files**:
+- `.archon/workflows/zsd-*.yaml` (RENAME from gsd-*.yaml)
+- `.planning/config.json` (UPDATE — add zarchon_version field)
+- `.archon/lib/migration.sh` (CREATE — detection utilities)
+- `README.md` (UPDATE — zsd-* references)
+- `SETUP.md` (UPDATE — zsd-* references)
+- `.planning/PROJECT.md` (UPDATE — zsd-* references)
+
+---
+
 ## Backlog
 
 ### Phase 11.3: Config Schema Consistency Fix (INSERTED)
@@ -433,16 +456,6 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 12: GSD to Zarchon Migration
-
-**Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to the new tool structure.
-**Requirements**: TBD
-**Depends on:** Phase 11.1
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 12 to break down)
 
 ---
 
