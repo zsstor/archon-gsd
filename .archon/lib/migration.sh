@@ -28,7 +28,13 @@ _has_json_field() {
 
   # Fallback to node (available in most dev environments)
   if command -v node >/dev/null 2>&1; then
-    node -e "const fs=require('fs');const obj=JSON.parse(fs.readFileSync('$file','utf8'));process.exit(obj.$field !== undefined ? 0 : 1);" 2>/dev/null
+    node -e "
+      const fs = require('fs');
+      const file = process.argv[1];
+      const field = process.argv[2];
+      const obj = JSON.parse(fs.readFileSync(file, 'utf8'));
+      process.exit(obj[field] !== undefined ? 0 : 1);
+    " -- "$file" "$field" 2>/dev/null
     return $?
   fi
 
@@ -110,10 +116,10 @@ migration_status() {
 
   if is_zarchon_migrated "${project_root}"; then
     echo "zarchon"
-  elif is_gsd_project "${project_root}"; then
-    echo "gsd"
   elif is_partial_migration "${project_root}"; then
     echo "partial"
+  elif is_gsd_project "${project_root}"; then
+    echo "gsd"
   elif [ -d "${project_root}/.planning" ]; then
     echo "unknown"
   else

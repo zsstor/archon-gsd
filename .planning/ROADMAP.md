@@ -432,10 +432,12 @@ Plans:
 **Requirements**: CR-01, CR-02, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08
 **Depends on:** Phase 11.3
 
-**Plans:** 0 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] (to be planned)
+- [x] 11.4-00-PLAN.md — Create test suites (test_routing.sh, test_delegate.sh) for TDD validation
+- [x] 11.4-01-PLAN.md — Fix routing.sh issues (CR-01, WR-01, WR-02, WR-03, WR-07)
+- [x] 11.4-02-PLAN.md — Fix ai-delegate issues (CR-02, WR-04, WR-05, WR-06, WR-08)
 
 **Key Files**:
 - `~/dev/.meta/bin/lib/routing.sh` (UPDATE — CR-01, WR-01, WR-02, WR-03, IN-02, IN-04)
@@ -489,17 +491,32 @@ Plans:
 
 ---
 
-## Backlog
+## Phase 12.1: PR 2 Review Fixes (INSERTED)
 
-### Phase 12.1: PR 2 Review Fixes (INSERTED)
+**Goal:** Fix two non-blocking issues found during PR #2 code review: missing models array in task_routing.review and incorrect detection order in migration_status().
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Requirements**: PR2-F1, PR2-F2
 **Depends on:** Phase 12
-**Plans:** 0 plans
+
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 12.1 to break down)
+- [x] 12.1-01-PLAN.md — Fix config.json review routing and migration.sh detection order
+
+**Findings to Fix:**
+
+| ID | Severity | Issue | File |
+|----|----------|-------|------|
+| PR2-F1 | Non-blocking (P2) | Missing `models` array in `task_routing.review` | .planning/config.json:195-197 |
+| PR2-F2 | Non-blocking (P2) | Partial migrations classified as GSD due to check order | .archon/lib/migration.sh:64-79 |
+
+**Key Files**:
+- `.planning/config.json` (UPDATE — add models array to task_routing.review)
+- `.archon/lib/migration.sh` (UPDATE — reorder detection in migration_status)
+
+---
+
+## Backlog
 
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
