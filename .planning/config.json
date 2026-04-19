@@ -191,6 +191,13 @@
         "claude-haiku",
         "gemini-flash"
       ]
+    },
+    "review": {
+      "models": [
+        "codex",
+        "claude-opus"
+      ],
+      "scoring_mode": "keyword+files"
     }
   },
   "escalation": {
