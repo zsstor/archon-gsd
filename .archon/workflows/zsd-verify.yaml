@@ -1,11 +1,11 @@
-name: gsd-verify
+name: zsd-verify
 description: |
-  Use when: gsd-execute has completed — verify the phase achieved its goal (not just that
-  tasks completed). Maps to GSD's /gsd-verify-work (goal-backward verification).
+  Use when: zsd-execute has completed — verify the phase achieved its goal (not just that
+  tasks completed). Maps to GSD's /zsd-verify-work (goal-backward verification).
   Triggers: "verify phase 01", "gsd verify NN", "check NN shipped".
   NOT for: Interactive UAT with the user (this is autonomous; for conversational UAT run
   the verify-work skill in Claude Code directly).
-  NOT for: Security/UI specific audits (use gsd-code-review / gsd-ui-review / gsd-secure-phase).
+  NOT for: Security/UI specific audits (use zsd-code-review / zsd-ui-review / zsd-secure-phase).
 
   Autonomous verification — Window 2 work:
   1. LOAD     — read plan, decisions, context, progress, git diff

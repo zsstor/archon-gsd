@@ -1,8 +1,8 @@
-name: gsd-validate-phase
+name: zsd-validate-phase
 description: |
   Use when: A phase shipped but you suspect test coverage is uneven — retroactively
   audit and fill Nyquist validation gaps (each significant code path has a test).
-  Maps to GSD's /gsd-validate-phase.
+  Maps to GSD's /zsd-validate-phase.
   Triggers: "validate phase 02", "gsd validate NN", "nyquist phase NN".
   NOT for: Full test-suite audit (this is scoped to the phase's changed code).
 

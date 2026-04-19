@@ -1,4 +1,4 @@
-name: gsd-status
+name: zsd-status
 description: |
   Use when: Want a quick read-only dashboard of what's going on across .planning/.
   Maps to GSD-2's /gsd2-status (format-warning dashboard).
@@ -19,7 +19,7 @@ nodes:
 
       if [ ! -d ".planning" ]; then
         echo "NO_PLANNING_DIR"
-        echo "Run: archon workflow run gsd-new-milestone \"v1.0 — initial\""
+        echo "Run: archon workflow run zsd-new-milestone \"v1.0 — initial\""
         exit 0
       fi
 

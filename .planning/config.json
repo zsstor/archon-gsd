@@ -155,14 +155,18 @@
       "scoring_mode": "keyword+files",
       "model_constraints": "tier-2-minimum"
     },
-    "scaffold": [
-      "gemini-flash",
-      "glm-ollama"
-    ],
-    "tdd-cycle": [
-      "codex",
-      "claude-sonnet"
-    ],
+    "scaffold": {
+      "models": [
+        "gemini-flash",
+        "glm-ollama"
+      ]
+    },
+    "tdd-cycle": {
+      "models": [
+        "codex",
+        "claude-sonnet"
+      ]
+    },
     "code-review": {
       "models": [
         "codex",
@@ -170,20 +174,24 @@
       ],
       "model_constraints": "cross-family-preferred"
     },
-    "complex-refactor": [
-      "codex",
-      "claude-opus"
-    ],
+    "complex-refactor": {
+      "models": [
+        "codex",
+        "claude-opus"
+      ]
+    },
     "judgment": {
       "models": [
         "claude-opus"
       ],
       "model_constraints": "opus-only"
     },
-    "trivial": [
-      "claude-haiku",
-      "gemini-flash"
-    ]
+    "trivial": {
+      "models": [
+        "claude-haiku",
+        "gemini-flash"
+      ]
+    }
   },
   "escalation": {
     "enabled": true,
@@ -310,5 +318,6 @@
     "default_backoff_max": 300,
     "parse_model": "glm-5.1:cloud",
     "state_dir": "/tmp/quota-state"
-  }
+  },
+  "zarchon_version": "1.0"
 }

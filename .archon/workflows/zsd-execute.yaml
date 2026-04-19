@@ -1,16 +1,16 @@
-name: gsd-execute
+name: zsd-execute
 description: |
   Use when: PLAN.md exists — execute each task with validation + atomic commits.
-  Maps to GSD-1's /gsd-execute-phase (wave-based parallelization, per-task commits,
+  Maps to GSD-1's /zsd-execute-phase (wave-based parallelization, per-task commits,
   disk-based progress tracking).
   Triggers: "execute phase 01", "gsd execute NN", "run phase NN".
-  NOT for: Planning (use gsd-plan first).
-  NOT for: UAT / verification (use gsd-verify after — atomic pass/fail gate).
+  NOT for: Planning (use zsd-plan first).
+  NOT for: UAT / verification (use zsd-verify after — atomic pass/fail gate).
 
   Autonomous task-by-task execution — Window 2 work:
   1. SETUP    — read PLAN.md, install deps, capture git state, count tasks
   2. IMPLEMENT (Ralph loop) — fresh context each iteration, one task per pass
-  3. REPORT   — final summary table + handoff to gsd-verify
+  3. REPORT   — final summary table + handoff to zsd-verify
 
   Input: Phase number. Reads {NN}-PLAN.md and {NN}-CONTEXT.md.
 
@@ -39,7 +39,7 @@ nodes:
 
       if [ ! -f "$PLAN_FILE" ]; then
         echo "ERROR: plan file not found: $PLAN_FILE"
-        echo "Run: archon workflow run gsd-plan ${ARGUMENTS}"
+        echo "Run: archon workflow run zsd-plan ${ARGUMENTS}"
         exit 1
       fi
 
@@ -60,7 +60,7 @@ nodes:
         bundle install 2>&1 | tail -3 || true
       fi
 
-      # Progress tracking lives in the phase dir (committed, so gsd-verify can read it)
+      # Progress tracking lives in the phase dir (committed, so zsd-verify can read it)
       PROGRESS_FILE="${PHASE_DIR}progress.txt"
       if [ ! -f "$PROGRESS_FILE" ]; then
         echo "# Phase ${ARGUMENTS} execution progress" > "$PROGRESS_FILE"
@@ -382,10 +382,10 @@ nodes:
 
       -- Next Step ----------------------------------------------------
       {If FAILED == 0:}
-        archon workflow run gsd-verify ${ARGUMENTS}
+        archon workflow run zsd-verify ${ARGUMENTS}
 
       {If FAILED > 0:}
-        Re-run: archon workflow run gsd-execute ${ARGUMENTS}
-        Or resolve manually then: archon workflow run gsd-verify ${ARGUMENTS}
+        Re-run: archon workflow run zsd-execute ${ARGUMENTS}
+        Or resolve manually then: archon workflow run zsd-verify ${ARGUMENTS}
       ===============================================================
       ```

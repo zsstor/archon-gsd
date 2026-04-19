@@ -1,10 +1,10 @@
-name: gsd-queue
+name: zsd-queue
 description: |
   Use when: Planning future milestones — write milestone-context files with depends_on
   ordering so they're ready to pick up after the current milestone ships. Maps to
   GSD-2's /gsd2-queue.
   Triggers: "queue next milestone", "gsd queue v2.1", "write milestone context".
-  NOT for: Starting an active milestone (use gsd-new-milestone).
+  NOT for: Starting an active milestone (use zsd-new-milestone).
 
   Writes milestone-context files for future milestones without committing to phase
   breakdowns yet. Dependencies are declared so the milestone-audit tooling can flag
@@ -41,7 +41,7 @@ nodes:
 
       If the input is too vague, make your best inference and note the assumptions
       clearly in the context file. This is a queue entry, not an active milestone —
-      precision can wait until gsd-new-milestone runs.
+      precision can wait until zsd-new-milestone runs.
 
   - id: write
     model: sonnet
@@ -86,11 +86,11 @@ nodes:
       ## Motivating Context
 
       {the context, trigger, or stakeholder ask that produced this entry — preserves
-      the "why" so a future `gsd-new-milestone` run has context}
+      the "why" so a future `zsd-new-milestone` run has context}
 
       ## Candidate Scope
 
-      Rough outline — NOT binding. Final scope is set by gsd-new-milestone requirements.
+      Rough outline — NOT binding. Final scope is set by zsd-new-milestone requirements.
       - {capability}
       - {capability}
 
@@ -138,5 +138,5 @@ nodes:
       **Depends on**: {count} prior milestones
 
       When ready to activate:
-      archon workflow run gsd-new-milestone "{version} — {intent}"
+      archon workflow run zsd-new-milestone "{version} — {intent}"
       ```

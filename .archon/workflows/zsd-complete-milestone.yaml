@@ -1,10 +1,10 @@
-name: gsd-complete-milestone
+name: zsd-complete-milestone
 description: |
   Use when: Milestone audit passed — archive the milestone and prepare the workspace
-  for the next version. Maps to GSD's /gsd-complete-milestone.
+  for the next version. Maps to GSD's /zsd-complete-milestone.
   Triggers: "complete milestone v2.0", "close milestone", "archive milestone".
-  NOT for: Auditing (run gsd-audit-milestone first).
-  NOT for: Starting the next milestone (use gsd-new-milestone after).
+  NOT for: Auditing (run zsd-audit-milestone first).
+  NOT for: Starting the next milestone (use zsd-new-milestone after).
 
   Autonomous archival:
   1. GUARD     — require MILESTONE-AUDIT.md with verdict READY
@@ -26,7 +26,7 @@ nodes:
 
       if [ ! -f "$AUDIT" ]; then
         echo "ERROR: audit file missing: $AUDIT"
-        echo "Run: archon workflow run gsd-audit-milestone ${VERSION}"
+        echo "Run: archon workflow run zsd-audit-milestone ${VERSION}"
         exit 1
       fi
 
@@ -91,7 +91,7 @@ nodes:
       ## Surprises / Lessons
 
       {synthesize from progress.txt FAILED entries and any retrospective notes —
-      use light touch; gsd-extract-learnings is the deeper retrospective}
+      use light touch; zsd-extract-learnings is the deeper retrospective}
 
       ## Follow-ups for Next Milestone
 
@@ -159,7 +159,7 @@ nodes:
 
       To start the next milestone:
       ```
-      archon workflow run gsd-new-milestone "<version> — <intent>"
+      archon workflow run zsd-new-milestone "<version> — <intent>"
       ```
       ```
 
@@ -194,7 +194,7 @@ nodes:
       Summary: .planning/milestones/archive/${ARGUMENTS}/${ARGUMENTS}-SUMMARY.md
 
       Next actions:
-      {if queued milestones ready: archon workflow run gsd-new-milestone "{version}"}
+      {if queued milestones ready: archon workflow run zsd-new-milestone "{version}"}
       {else: plan the next milestone}
       ===============================================================
       ```

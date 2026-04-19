@@ -1,10 +1,10 @@
-name: gsd-new-milestone
+name: zsd-new-milestone
 description: |
   Use when: Starting a new milestone cycle — capture requirements, create roadmap, slice
-  into phases. Maps to GSD's /gsd-new-milestone + requirements gathering.
+  into phases. Maps to GSD's /zsd-new-milestone + requirements gathering.
   Triggers: "new milestone", "start v2.0", "plan next milestone", "milestone bootstrap".
-  NOT for: Continuing an existing milestone (use gsd-discuss on a specific phase).
-  NOT for: Project-level setup (run /gsd-new-project in Claude Code once per repo).
+  NOT for: Continuing an existing milestone (use zsd-discuss on a specific phase).
+  NOT for: Project-level setup (run /zsd-new-project in Claude Code once per repo).
 
   Interactive milestone bootstrap — Window 1 work:
   1. UNDERSTAND — restate the milestone intent, explore what already exists
@@ -267,7 +267,7 @@ nodes:
         front-load it.
       - Testing is not a separate phase unless the test infrastructure itself is the
         deliverable. Each phase produces tested code.
-      - Verification is implicit: every phase ends with a gsd-verify run.
+      - Verification is implicit: every phase ends with a zsd-verify run.
 
       ## Step 3: For each phase, specify
 
@@ -374,7 +374,7 @@ nodes:
       - .planning/milestones/{version}-ROADMAP.md
       - .planning/ROADMAP.md (updated)
 
-      **Next step**: `archon workflow run gsd-research 01` to start phase 01.
+      **Next step**: `archon workflow run zsd-research 01` to start phase 01.
       ```
 
       Verify every file path you reference exists. Verify every dependency in the phase
@@ -476,8 +476,8 @@ nodes:
       ...
 
       -- Next Actions --------------------------------------------------
-      Window 1:  archon workflow run gsd-research 01
-      Window 1:  archon workflow run gsd-discuss 01
-      Window 2:  archon workflow run gsd-autonomous 01
+      Window 1:  archon workflow run zsd-research 01
+      Window 1:  archon workflow run zsd-discuss 01
+      Window 2:  archon workflow run zsd-autonomous 01
       ===============================================================
       ```

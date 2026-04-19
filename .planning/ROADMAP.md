@@ -150,7 +150,7 @@ Plans:
 **Intent**: Enforce "models don't review their own code" by delegating code review to a different model (default: Codex), posting findings to PR, and routing issues.
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-review-pr.yaml`
+- New workflow: `.archon/workflows/zsd-review-pr.yaml`
 - Finding classification: BLOCKING vs NON-BLOCKING
 - PR comment posting via `gh pr comment`
 - Routing:
@@ -159,7 +159,7 @@ Plans:
 - Integration with existing `review-pr` skill logic
 
 **Key Files**:
-- `.archon/workflows/gsd-review-pr.yaml` (CREATE)
+- `.archon/workflows/zsd-review-pr.yaml` (CREATE)
 - `.planning/config.json` — `review` section (CREATE)
 
 ---
@@ -224,14 +224,14 @@ Plans:
   }
   ```
 - Local fallbacks:
-  - `gsd-review-pr` → `gsd-review-branch` (diff against main, REVIEW.md output)
+  - `zsd-review-pr` → `zsd-review-branch` (diff against main, REVIEW.md output)
   - `gh pr create` → skip, document in artifact
   - `gh pr comment` → append to local file
 - Every `gh` command has a local fallback path
 
 **Key Files**:
 - `.planning/config.json` (UPDATE) — github section
-- `.archon/workflows/gsd-review-pr.yaml` (UPDATE) — local mode branch
+- `.archon/workflows/zsd-review-pr.yaml` (UPDATE) — local mode branch
 - `~/dev/.meta/bin/local-pr` (CREATE) — local PR simulation
 
 ---
@@ -241,7 +241,7 @@ Plans:
 **Intent**: Use cheap async models to autonomously work DEBT items to a reviewable state.
 
 **Flow**:
-1. Invoke `gsd-process-debt` (manual or scheduled)
+1. Invoke `zsd-process-debt` (manual or scheduled)
 2. Cheap model (Haiku/Gemini/GLM) picks a DEBT.x item
 3. Implements fix on a branch
 4. Creates draft PR
@@ -249,13 +249,13 @@ Plans:
 6. Output: Draft PR with review comments, ready for human merge
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-process-debt.yaml`
+- New workflow: `.archon/workflows/zsd-process-debt.yaml`
 - Integration with draft PR creation
 - Codex review delegation
 - Stops before merge — human reviews final
 
 **Key Files**:
-- `.archon/workflows/gsd-process-debt.yaml` (CREATE)
+- `.archon/workflows/zsd-process-debt.yaml` (CREATE)
 - `.planning/config.json` — `autonomous` section (CREATE)
 
 ---
@@ -265,7 +265,7 @@ Plans:
 **Intent**: Triage GitHub issues into WANT.x planning artifacts using cheap models.
 
 **Flow**:
-1. Invoke `gsd-process-issues`
+1. Invoke `zsd-process-issues`
 2. Fetch open issues: `gh issue list --state open --search "-label:autotriaged"`
 3. For each issue → create `WANT.x` planning artifact
 4. Cheap model does triage: complexity estimate, affected files, draft approach
@@ -273,13 +273,13 @@ Plans:
 6. Output: `WANT.1-issue-42/WANT.1-TRIAGE.md` ready for review
 
 **Deliverables**:
-- New workflow: `.archon/workflows/gsd-process-issues.yaml`
+- New workflow: `.archon/workflows/zsd-process-issues.yaml`
 - WANT.x phase convention support
 - `autotriaged` label management
 - Triage artifact template
 
 **Key Files**:
-- `.archon/workflows/gsd-process-issues.yaml` (CREATE)
+- `.archon/workflows/zsd-process-issues.yaml` (CREATE)
 - `.planning/config.json` — `issues` section (CREATE)
 
 ---
@@ -402,20 +402,104 @@ Plans:
 
 ---
 
-## Backlog
-
-### Phase 11.3: Config Schema Consistency Fix (INSERTED)
+## Phase 11.3: Config Schema Consistency Fix
 
 **Goal:** Fix schema inconsistency in `task_routing` config entries where `impl`, `code-review`, and `judgment` use object format while routing/logging code expects array format. Align schema so `model_chain` is logged correctly.
 
 **Context:** Found during PR #1 code review by Codex. The `task_routing.impl` entry changed from array to object, causing `model_chain` to be logged as object instead of array format.
 
-**Requirements**: TBD
+**Requirements**: SCHEMA-01, SCHEMA-02, SCHEMA-03
 **Depends on:** Phase 11.2
+
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 11.3-01-PLAN.md — Normalize config schema, create _get_model_chain helper, update ai-delegate callers
+
+**Key Files**:
+- `.planning/config.json` (UPDATE)
+- `~/dev/.meta/bin/lib/routing.sh` (UPDATE)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE)
+
+---
+
+## Phase 11.4: Code Review Fixes (routing.sh + ai-delegate)
+
+**Goal:** Address 15 code review findings from Phase 11.3 review: 2 critical security issues (command injection, unsafe .profile sourcing), 8 warnings (array bounds, non-atomic writes, missing checks), and 5 info items (error context, magic numbers, logging consistency).
+
+**Context:** Found during Phase 11.3 code review. These are pre-existing issues in routing.sh and ai-delegate, not introduced by 11.3 changes.
+
+**Requirements**: CR-01, CR-02, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08
+**Depends on:** Phase 11.3
+
 **Plans:** 0 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 11.3 to break down)
+- [ ] (to be planned)
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/routing.sh` (UPDATE — CR-01, WR-01, WR-02, WR-03, IN-02, IN-04)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE — CR-02, WR-04, WR-05, WR-06, WR-08, IN-01, IN-03, IN-05)
+
+**Findings Summary**:
+
+Critical:
+- CR-01: Command injection via unescaped task_type in jq (routing.sh:55)
+- CR-02: Arbitrary code execution via .profile sourcing (ai-delegate:26)
+
+Warnings:
+- WR-01: Array access without bounds check (routing.sh:242-244)
+- WR-02: Non-atomic config file modification (routing.sh:358-387)
+- WR-03: Python dependency without fallback (routing.sh:195,200)
+- WR-04: Module source without existence check (ai-delegate:30-34)
+- WR-05: Task type inconsistency "review" vs "code-review" (ai-delegate:367)
+- WR-06: File read without permission check (ai-delegate:175-180)
+- WR-07: Datetime parsing without error handling (routing.sh:432-434)
+- WR-08: Large file inclusion in prompts (ai-delegate:318)
+
+Info:
+- IN-01: Missing error context in die() (ai-delegate:85)
+- IN-02: Magic numbers for complexity thresholds (routing.sh:241-244)
+- IN-03: Verbose logging inconsistency (ai-delegate:168-171)
+- IN-04: Incomplete variable validation (routing.sh:162-163)
+- IN-05: Unclear session ID cleanup (ai-delegate:75-78)
+
+---
+
+## Phase 12: GSD to Zarchon Migration
+
+**Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to native Archon workflow execution with zsd-* naming.
+
+**Requirements**: D-01, D-03, D-04, D-06, D-07, D-08, D-09
+**Depends on:** Phase 11.1
+
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 12-01-PLAN.md — Rename 18 workflow files gsd-* to zsd-*, update internal refs, add version field, update docs
+- [x] 12-02-PLAN.md — Create migration detection utility (is_zarchon_migrated, is_gsd_project functions)
+
+**Key Files**:
+- `.archon/workflows/zsd-*.yaml` (RENAME from gsd-*.yaml)
+- `.planning/config.json` (UPDATE — add zarchon_version field)
+- `.archon/lib/migration.sh` (CREATE — detection utilities)
+- `README.md` (UPDATE — zsd-* references)
+- `SETUP.md` (UPDATE — zsd-* references)
+- `.planning/PROJECT.md` (UPDATE — zsd-* references)
+
+---
+
+## Backlog
+
+### Phase 12.1: PR 2 Review Fixes (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12.1 to break down)
 
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
@@ -433,16 +517,6 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 12: GSD to Zarchon Migration
-
-**Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to the new tool structure.
-**Requirements**: TBD
-**Depends on:** Phase 11.1
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 12 to break down)
 
 ---
 
