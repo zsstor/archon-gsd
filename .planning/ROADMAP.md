@@ -404,6 +404,19 @@ Plans:
 
 ## Backlog
 
+### Phase 11.3: Config Schema Consistency Fix (INSERTED)
+
+**Goal:** Fix schema inconsistency in `task_routing` config entries where `impl`, `code-review`, and `judgment` use object format while routing/logging code expects array format. Align schema so `model_chain` is logged correctly.
+
+**Context:** Found during PR #1 code review by Codex. The `task_routing.impl` entry changed from array to object, causing `model_chain` to be logged as object instead of array format.
+
+**Requirements**: TBD
+**Depends on:** Phase 11.2
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 11.3 to break down)
+
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
 **Goal:** Support multiple concurrent execution sessions with git worktrees. Consolidate 5-terminal workflow to 1-2 terminals. Human inflection points (approvals, completions, decisions) bubble up to a planning terminal while execution continues in background.
