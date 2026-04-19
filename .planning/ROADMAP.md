@@ -411,10 +411,10 @@ Plans:
 **Requirements**: SCHEMA-01, SCHEMA-02, SCHEMA-03
 **Depends on:** Phase 11.2
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 11.3-01-PLAN.md — Normalize config schema, create _get_model_chain helper, update ai-delegate callers
+- [x] 11.3-01-PLAN.md — Normalize config schema, create _get_model_chain helper, update ai-delegate callers
 
 **Key Files**:
 - `.planning/config.json` (UPDATE)
