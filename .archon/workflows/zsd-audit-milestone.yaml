@@ -1,10 +1,10 @@
-name: gsd-audit-milestone
+name: zsd-audit-milestone
 description: |
   Use when: All phases of a milestone appear complete — audit completeness against the
-  original milestone intent before archiving. Maps to GSD's /gsd-audit-milestone.
+  original milestone intent before archiving. Maps to GSD's /zsd-audit-milestone.
   Triggers: "audit milestone v2.0", "audit before archiving", "milestone readiness".
-  NOT for: Auditing a single phase (use gsd-verify).
-  NOT for: Archiving (use gsd-complete-milestone after this passes).
+  NOT for: Auditing a single phase (use zsd-verify).
+  NOT for: Archiving (use zsd-complete-milestone after this passes).
 
   Autonomous milestone audit:
   1. LOAD   — milestone requirements, roadmap, every phase's VERIFICATION.md
@@ -135,7 +135,7 @@ nodes:
 
       ## Recommendation
 
-      {"Ready to archive via gsd-complete-milestone" OR "Address gaps before archiving"}
+      {"Ready to archive via zsd-complete-milestone" OR "Address gaps before archiving"}
       ```
 
       Commit:

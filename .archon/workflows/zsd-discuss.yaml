@@ -1,11 +1,11 @@
-name: gsd-discuss
+name: zsd-discuss
 description: |
   Use when: Research is complete, before planning — lock decisions through adaptive
-  questioning. Maps to GSD-1's /gsd-discuss-phase (the GSD-1 flow the user specifically
+  questioning. Maps to GSD-1's /zsd-discuss-phase (the GSD-1 flow the user specifically
   requested; GSD-2's native discuss is more script-driven).
   Triggers: "discuss phase 02", "gsd discuss 01", "lock decisions for NN".
-  NOT for: Deciding WHAT to build (use gsd-new-milestone).
-  NOT for: Planning HOW to build (use gsd-plan — runs after this).
+  NOT for: Deciding WHAT to build (use zsd-new-milestone).
+  NOT for: Planning HOW to build (use zsd-plan — runs after this).
 
   Adaptive Q&A workflow — Window 1 work, runs until the user says "ready":
   1. LOAD      — read RESEARCH.md, phase slot, upstream artifacts
@@ -50,13 +50,13 @@ nodes:
       ```
 
       If the phase dir doesn't exist, the milestone wasn't bootstrapped — bail with a
-      clear error telling the user to run `gsd-new-milestone` first.
+      clear error telling the user to run `zsd-new-milestone` first.
 
       ## Step 2: Load phase context
 
       Read everything in the phase dir:
       - `{NN}-RESEARCH.md` — the research synthesis (required — bail if missing and tell
-        the user to run `gsd-research $ARGUMENTS` first)
+        the user to run `zsd-research $ARGUMENTS` first)
       - Any other files present
 
       ## Step 3: Load upstream artifacts
@@ -389,7 +389,7 @@ nodes:
       - .planning/milestones/{version}-phases/{NN}-{slug}/{NN}-CONTEXT.md
 
       **Next steps**:
-      - Window 1: (continue to next phase) `archon workflow run gsd-discuss {NN+1}`
-      - Window 2: (fire autonomous) `archon workflow run gsd-autonomous {NN}`
-      - Window 2 (split): `archon workflow run gsd-plan {NN}`
+      - Window 1: (continue to next phase) `archon workflow run zsd-discuss {NN+1}`
+      - Window 2: (fire autonomous) `archon workflow run zsd-autonomous {NN}`
+      - Window 2 (split): `archon workflow run zsd-plan {NN}`
       ```

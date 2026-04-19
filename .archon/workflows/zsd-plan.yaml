@@ -1,10 +1,10 @@
-name: gsd-plan
+name: zsd-plan
 description: |
   Use when: Decisions are locked for a phase — produce an executable PLAN.md with
-  goal-backward verification. Maps to GSD-2's /gsd2-plan + GSD-1's /gsd-plan-phase.
+  goal-backward verification. Maps to GSD-2's /gsd2-plan + GSD-1's /zsd-plan-phase.
   Triggers: "plan phase 01", "gsd plan NN".
-  NOT for: Discussing decisions (use gsd-discuss first).
-  NOT for: Executing the plan (use gsd-execute after).
+  NOT for: Discussing decisions (use zsd-discuss first).
+  NOT for: Executing the plan (use zsd-execute after).
 
   Autonomous planning — Window 2 work:
   1. PATTERNS  — map new files to closest existing analogs in the codebase
@@ -478,5 +478,5 @@ nodes:
       **Waves**: {count}
       **Files touched (planned)**: {count}
 
-      **Next step (Window 2)**: `archon workflow run gsd-execute {NN}`
+      **Next step (Window 2)**: `archon workflow run zsd-execute {NN}`
       ```

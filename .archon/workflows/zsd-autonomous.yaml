@@ -1,18 +1,18 @@
-name: gsd-autonomous
+name: zsd-autonomous
 description: |
   Use when: Decisions are locked for a phase — run plan → execute → verify autonomously
   in a single DAG invocation. This is the "fire and forget" workflow for Window 2.
   Triggers: "autonomous phase 01", "gsd autonomous NN", "ship NN".
-  NOT for: Anything that still needs user discussion (run gsd-discuss first).
-  NOT for: Partial re-runs — use the individual gsd-plan / gsd-execute / gsd-verify.
+  NOT for: Anything that still needs user discussion (run zsd-discuss first).
+  NOT for: Partial re-runs — use the individual zsd-plan / zsd-execute / zsd-verify.
 
   Chained autonomous pipeline — Window 2 work, no human input:
-  1. PATTERNS   — map new files to existing analogs (same as gsd-plan.patterns)
+  1. PATTERNS   — map new files to existing analogs (same as zsd-plan.patterns)
   2. DRAFT      — write PLAN.md (Opus for judgment)
   3. CHECK      — goal-backward plan verification (Opus, adversarial)
   4. REVISE     — fix any issues (conditional)
   5. PLAN_COMMIT — commit PLAN.md
-  6. SETUP      — load plan, install deps (same as gsd-execute.setup)
+  6. SETUP      — load plan, install deps (same as zsd-execute.setup)
   7. IMPLEMENT  — Ralph loop: one task per iteration, fresh context (Sonnet + Opus escalation)
   8. EXEC_REPORT — summary of execution
   9. LOAD_V     — re-read everything for verify
@@ -24,9 +24,9 @@ description: |
   Input: Phase number. Reads {NN}-CONTEXT.md, {NN}-DECISIONS.md, {NN}-RESEARCH.md.
   Output: PR open against base branch + VERIFICATION.md committed.
 
-  This workflow duplicates node logic from gsd-plan / gsd-execute / gsd-verify because
+  This workflow duplicates node logic from zsd-plan / zsd-execute / zsd-verify because
   Archon does not support sub-workflow invocation. To change verification logic, change
-  it in THREE places (this file + gsd-verify.yaml). The individual-phase workflows are
+  it in THREE places (this file + zsd-verify.yaml). The individual-phase workflows are
   maintained for partial re-runs.
 
 provider: claude
@@ -35,7 +35,7 @@ fallbackModel: claude-opus-4-7
 
 nodes:
   # ═══════════════════════════════════════════════════════════════
-  # PHASE 1-5: PLAN (mirrors gsd-plan)
+  # PHASE 1-5: PLAN (mirrors zsd-plan)
   # ═══════════════════════════════════════════════════════════════
 
   - id: patterns
@@ -43,7 +43,7 @@ nodes:
     prompt: |
       # GSD Autonomous — Pattern Mapping
 
-      Map new files to existing analogs. Same logic as gsd-plan's patterns node.
+      Map new files to existing analogs. Same logic as zsd-plan's patterns node.
 
       **Phase**: $ARGUMENTS
 
@@ -59,7 +59,7 @@ nodes:
       (use Grep/Glob, read the analog fully). For every UPDATE, read the current file.
 
       Write `$ARTIFACTS_DIR/patterns.md` with the mapping table (new file → analog +
-      why). See gsd-plan.yaml for the full template.
+      why). See zsd-plan.yaml for the full template.
 
   - id: draft
     model: opus
@@ -72,7 +72,7 @@ nodes:
 
       Load all phase artifacts (CONTEXT.md, DECISIONS.md, RESEARCH.md) and the pattern
       map. Write `.planning/milestones/{version}-phases/{NN}-*/{NN}-PLAN.md` following
-      the full template in gsd-plan.yaml's draft node (goal, success criteria, threat
+      the full template in zsd-plan.yaml's draft node (goal, success criteria, threat
       model, files, wave structure, tasks, testing, validation, risks, rollback,
       goal-backward check).
 
@@ -104,7 +104,7 @@ nodes:
       **Phase**: $ARGUMENTS
 
       Read PLAN.md + CONTEXT.md + DECISIONS.md fresh. Apply the full check suite from
-      gsd-plan.yaml's check node: goal coverage, atomicity, pattern fidelity,
+      zsd-plan.yaml's check node: goal coverage, atomicity, pattern fidelity,
       dependencies, verification, scope, threat model, rollback.
 
       Emit verdict: PASS if no BLOCKERs and ≤2 MAJORs, else REVISE.
@@ -120,7 +120,7 @@ nodes:
       **Issues**: $check.output
 
       Apply suggested_fix for each issue. BLOCKER and MAJOR must be fixed. Edit the plan
-      file directly (preserve unaffected sections). See gsd-plan.yaml revise node for
+      file directly (preserve unaffected sections). See zsd-plan.yaml revise node for
       full instructions.
 
   - id: plan-commit
@@ -145,7 +145,7 @@ nodes:
       chore(planning): phase ${ARGUMENTS} plan
 
       - Tasks: ${TASK_COUNT}
-      - Auto-generated via gsd-autonomous
+      - Auto-generated via zsd-autonomous
       EOF
       )" 2>&1 || echo "nothing to commit"
 
@@ -153,7 +153,7 @@ nodes:
       echo "TASK_COUNT=$TASK_COUNT"
 
   # ═══════════════════════════════════════════════════════════════
-  # PHASE 6-8: EXECUTE (mirrors gsd-execute)
+  # PHASE 6-8: EXECUTE (mirrors zsd-execute)
   # ═══════════════════════════════════════════════════════════════
 
   - id: setup
@@ -165,7 +165,7 @@ nodes:
       CONTEXT_FILE="${PHASE_DIR}${ARGUMENTS}-CONTEXT.md"
       PROGRESS_FILE="${PHASE_DIR}progress.txt"
 
-      # Install deps (see gsd-execute.setup for full package-manager list)
+      # Install deps (see zsd-execute.setup for full package-manager list)
       if [ -f "bun.lock" ] || [ -f "bun.lockb" ]; then bun install --frozen-lockfile 2>&1 | tail -3 || true
       elif [ -f "uv.lock" ]; then uv sync 2>&1 | tail -3 || true
       elif [ -f "poetry.lock" ]; then poetry install --no-interaction 2>&1 | tail -3 || true
@@ -201,7 +201,7 @@ nodes:
         # GSD Autonomous — Implementation Loop
 
         Fresh session. Read plan + progress from disk, implement ONE task, validate,
-        commit, update progress, exit. Same protocol as gsd-execute.implement.
+        commit, update progress, exit. Same protocol as zsd-execute.implement.
 
         **Setup output**: $setup.output
         **Phase**: $ARGUMENTS
@@ -295,7 +295,7 @@ nodes:
       git diff --stat HEAD~${COMPLETED}..HEAD 2>/dev/null || git diff --stat
 
   # ═══════════════════════════════════════════════════════════════
-  # PHASE 9-12: VERIFY (mirrors gsd-verify)
+  # PHASE 9-12: VERIFY (mirrors zsd-verify)
   # ═══════════════════════════════════════════════════════════════
 
   - id: load-v
@@ -384,7 +384,7 @@ nodes:
       **Load output**: $load-v.output
       **Suite output**: $suite.output
 
-      Apply the full audit protocol from gsd-verify.yaml's audit node: extract success
+      Apply the full audit protocol from zsd-verify.yaml's audit node: extract success
       criteria from PLAN.md, map each to implementing code + test, classify as
       COVERED / PARTIAL / MISSING. Check for deletions of existing tests. Check plan
       vs. actual file changes. Check threat mitigations if plan had a threat model.
@@ -413,7 +413,7 @@ nodes:
       **Audit**: $audit.output
 
       Write `.planning/milestones/{version}-phases/{NN}-*/{NN}-VERIFICATION.md` with
-      the full template from gsd-verify.yaml (summary, success criteria table, suite
+      the full template from zsd-verify.yaml (summary, success criteria table, suite
       results, plan-vs-reality, regressions, threat coverage, outstanding items,
       recommendation).
 
@@ -472,8 +472,8 @@ nodes:
 
       -- No PR opened ------------------------------------------------
       Fix the issues flagged in VERIFICATION.md and re-run:
-        archon workflow run gsd-execute ${ARGUMENTS}
-        archon workflow run gsd-verify ${ARGUMENTS}
+        archon workflow run zsd-execute ${ARGUMENTS}
+        archon workflow run zsd-verify ${ARGUMENTS}
       ===============================================================
       ```
 
@@ -527,7 +527,7 @@ nodes:
       - Verification: `${VERIFY_FILE}`
       - Decisions: `${PHASE_DIR}${ARGUMENTS}-DECISIONS.md`
 
-      🤖 Generated by gsd-autonomous (Archon workflow).
+      🤖 Generated by zsd-autonomous (Archon workflow).
       EOF
       )"
       ```

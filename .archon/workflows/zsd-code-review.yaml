@@ -1,10 +1,10 @@
-name: gsd-code-review
+name: zsd-code-review
 description: |
   Use when: A phase has shipped (or is shipping) — review the changed code for bugs,
-  security issues, and code-quality problems. Maps to GSD's /gsd-code-review.
+  security issues, and code-quality problems. Maps to GSD's /zsd-code-review.
   Triggers: "code review phase 01", "gsd review NN", "review phase".
-  NOT for: Auto-fixing review issues (run gsd-code-review-fix separately — not
-  included in v1 of this bundle; re-run gsd-execute with the REVIEW.md findings
+  NOT for: Auto-fixing review issues (run zsd-code-review-fix separately — not
+  included in v1 of this bundle; re-run zsd-execute with the REVIEW.md findings
   inlined into PLAN.md, or fix manually).
 
   Autonomous code review — produces REVIEW.md with severity-classified findings.
@@ -164,5 +164,5 @@ nodes:
       **Findings**: {BLOCKER} BLOCKER / {MAJOR} MAJOR / {MINOR} MINOR
       **Verdict**: {block-merge / address-first / merge-ready}
 
-      To fix: review findings in {path} and update the code, then re-run gsd-verify.
+      To fix: review findings in {path} and update the code, then re-run zsd-verify.
       ```

@@ -1,10 +1,10 @@
-name: gsd-extract-learnings
+name: zsd-extract-learnings
 description: |
   Use when: A phase or milestone has completed — distill decisions, lessons, patterns,
   and surprises into a reusable learnings document. Maps to GSD's
-  /gsd-extract-learnings.
+  /zsd-extract-learnings.
   Triggers: "extract learnings phase 02", "lessons from NN", "retrospective phase".
-  NOT for: Writing verification (use gsd-verify).
+  NOT for: Writing verification (use zsd-verify).
 
   Autonomous retrospective:
   1. LOAD    — read all artifacts (PLAN, DECISIONS, PROGRESS, VERIFICATION, diff)

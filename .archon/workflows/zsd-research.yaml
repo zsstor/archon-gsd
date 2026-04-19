@@ -1,9 +1,9 @@
-name: gsd-research
+name: zsd-research
 description: |
   Use when: Starting a phase, before discuss — spawn parallel researchers to build the
   evidence base. Maps to GSD-2's /gsd2-research (4 parallel researcher agents → synthesis).
   Triggers: "research phase 02", "gsd research 01", "gather research for NN".
-  NOT for: Mid-execution research (use gsd-execute's per-task reads).
+  NOT for: Mid-execution research (use zsd-execute's per-task reads).
   NOT for: Market/competitor research (use archon-interactive-prd).
 
   Fan-out research workflow:
@@ -495,5 +495,5 @@ nodes:
       **Open decisions for discuss**: {count}
       **Contradictions flagged**: {count}
 
-      **Next step (Window 1)**: `archon workflow run gsd-discuss {NN}`
+      **Next step (Window 1)**: `archon workflow run zsd-discuss {NN}`
       ```

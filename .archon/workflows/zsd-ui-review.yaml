@@ -1,13 +1,13 @@
-name: gsd-ui-review
+name: zsd-ui-review
 description: |
   Use when: A frontend-touching phase has shipped — audit visual/UX pillars. Maps to
-  GSD's /gsd-ui-review (6-pillar visual audit).
+  GSD's /zsd-ui-review (6-pillar visual audit).
   Triggers: "ui review phase 03", "gsd ui-review NN".
-  NOT for: Creating a UI design contract (run /gsd-ui-phase in Claude Code before the
+  NOT for: Creating a UI design contract (run /zsd-ui-phase in Claude Code before the
   phase ships — not scaffolded here because it needs live browser access).
 
   Autonomous 6-pillar UI review. Static-only — reads component code + tokens + CSS.
-  For live-browser audits, run /gsd-ui-review in Claude Code (it can drive Playwright
+  For live-browser audits, run /zsd-ui-review in Claude Code (it can drive Playwright
   via MCP).
 
   Input: Phase number. Assumes the phase changed frontend code.

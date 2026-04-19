@@ -1,8 +1,8 @@
-name: gsd-secure-phase
+name: zsd-secure-phase
 description: |
   Use when: A security-sensitive phase shipped — verify each threat from the plan's
   threat model has a concrete code-level mitigation and a test that exercises it.
-  Maps to GSD's /gsd-secure-phase.
+  Maps to GSD's /zsd-secure-phase.
   Triggers: "secure phase 02", "gsd secure NN", "security check NN".
   NOT for: Full security audit of the whole app (out of scope — use a dedicated tool).
 

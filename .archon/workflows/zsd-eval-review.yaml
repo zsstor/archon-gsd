@@ -1,11 +1,11 @@
-name: gsd-eval-review
+name: zsd-eval-review
 description: |
   Use when: An AI-integrating phase shipped — retroactively audit whether the
   evaluation strategy from AI-SPEC.md was actually implemented. Maps to GSD's
-  /gsd-eval-review.
+  /zsd-eval-review.
   Triggers: "eval review phase 04", "gsd eval-review NN".
   NOT for: Phases without AI integration.
-  NOT for: Creating the initial AI-SPEC.md (run /gsd-ai-integration-phase in
+  NOT for: Creating the initial AI-SPEC.md (run /zsd-ai-integration-phase in
   Claude Code — not scaffolded here; it's setup-time, not pipeline-time).
 
   Autonomous evaluation coverage audit for AI phases. Scores each eval dimension

@@ -1,9 +1,9 @@
-name: gsd-cleanup
+name: zsd-cleanup
 description: |
   Use when: .planning/ has accumulated old phase directories from archived milestones
-  that are cluttering discovery. Maps to GSD's /gsd-cleanup.
+  that are cluttering discovery. Maps to GSD's /zsd-cleanup.
   Triggers: "gsd cleanup", "archive old phases", "planning cleanup".
-  NOT for: Archiving a full milestone (use gsd-complete-milestone).
+  NOT for: Archiving a full milestone (use zsd-complete-milestone).
 
   Deterministic cleanup: moves archived-milestone phase dirs deeper into an archive
   tree, leaves active milestone untouched. No AI needed — this is pure git+bash.
