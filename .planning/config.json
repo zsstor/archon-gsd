@@ -268,7 +268,7 @@
     ]
   },
   "workflow": {
-    "_auto_chain_active": true
+    "_auto_chain_active": false
   },
   "scoring_defaults": {
     "initial_mode": "keyword",
