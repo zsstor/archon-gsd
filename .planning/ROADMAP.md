@@ -373,6 +373,16 @@ Plans:
 
 ## Backlog
 
+### Phase 11.2: Security Pattern Remediation (INSERTED)
+
+**Goal:** Fix remaining command injection vulnerabilities (CR-02 through CR-05) in logging.sh and ai-delegate by applying consistent env var + quoted heredoc pattern.
+**Requirements**: TBD
+**Depends on:** Phase 11.1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 11.2 to break down)
+
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
 **Goal:** Support multiple concurrent execution sessions with git worktrees. Consolidate 5-terminal workflow to 1-2 terminals. Human inflection points (approvals, completions, decisions) bubble up to a planning terminal while execution continues in background.
