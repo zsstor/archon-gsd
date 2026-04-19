@@ -53,7 +53,7 @@ A workflow system where the right model handles each task — delegating simple 
 - Milestone-scoped: can be promoted to current or future milestone
 
 **WANT.x (User Wants)**
-- `WANT.x` phases are auto-created from GitHub issues via `gsd-process-issues`
+- `WANT.x` phases are auto-created from GitHub issues via `zsd-process-issues`
 - Each issue gets a triage artifact: `WANT.1-issue-42/WANT.1-TRIAGE.md`
 - Processed issues are labeled `autotriaged` to avoid re-processing
 - A `WANT.x` phase **completes when promoted** to a sequential phase
