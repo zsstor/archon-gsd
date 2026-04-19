@@ -341,6 +341,44 @@ Plans:
 
 ---
 
+## Phase 11.5: Codex Codebase Review Fixes (INSERTED)
+
+**Goal:** Fix 10 issues found by Codex o3 full codebase review: 1 critical (command injection in Python heredocs), 7 warnings (set -e handling, outcome attribution, model selection, logging/locking issues), 2 info items (jq fallback, handoff escaping).
+
+**Requirements**: CR-01, WR-01, WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, IN-01, IN-02
+**Depends on:** Phase 11
+
+**Plans:** 2 plans
+
+Plans:
+- [ ] 11.5-01-PLAN.md — Fix routing.sh, escalation.sh, execution.sh (CR-01, WR-03, WR-07, IN-01, IN-02)
+- [ ] 11.5-02-PLAN.md — Fix ai-delegate, logging.sh, quota.sh (WR-01, WR-02, WR-04, WR-05, WR-06)
+
+**Findings to Fix:**
+
+| ID | Severity | Issue | File |
+|----|----------|-------|------|
+| CR-01 | Critical | Command injection via unquoted Python heredocs | routing.sh:336-356, 438-488 |
+| WR-01 | Warning | set -e breaks failure path handling | ai-delegate:249-260, 322-333, etc. |
+| WR-02 | Warning | Incorrect outcome attribution after escalation | ai-delegate + escalation.sh |
+| WR-03 | Warning | Codex model selection ignored | execution.sh:74-76, 130-138 |
+| WR-04 | Warning | JSONL logging without file locking | logging.sh:44, 95, 361, etc. |
+| WR-05 | Warning | Silent logging failures | logging.sh:44-45, 95-96, etc. |
+| WR-06 | Warning | Task type inconsistency (review vs code-review) | quota.sh + ai-delegate |
+| WR-07 | Warning | Config update race condition | routing.sh:371-410 |
+| IN-01 | Info | Broken jq fallback chain | routing.sh:101-106 |
+| IN-02 | Info | Unescaped handoff context | escalation.sh:139-163 |
+
+**Key Files**:
+- `~/dev/.meta/bin/lib/routing.sh` (UPDATE — CR-01, WR-07, IN-01)
+- `~/dev/.meta/bin/lib/escalation.sh` (UPDATE — WR-02, IN-02)
+- `~/dev/.meta/bin/lib/execution.sh` (UPDATE — WR-03)
+- `~/dev/.meta/bin/lib/logging.sh` (UPDATE — WR-04, WR-05)
+- `~/dev/.meta/bin/lib/quota.sh` (UPDATE — WR-06)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE — WR-01, WR-02, WR-06)
+
+---
+
 ## Phase 11.1: PR 1 Review Fixes (INSERTED)
 
 **Goal:** Fix critical and warning issues from Phase 11 code review before merging PR #1.
