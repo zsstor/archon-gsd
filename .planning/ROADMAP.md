@@ -491,6 +491,16 @@ Plans:
 
 ## Backlog
 
+### Phase 12.1: PR 2 Review Fixes (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12.1 to break down)
+
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
 **Goal:** Support multiple concurrent execution sessions with git worktrees. Consolidate 5-terminal workflow to 1-2 terminals. Human inflection points (approvals, completions, decisions) bubble up to a planning terminal while execution continues in background.
