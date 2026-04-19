@@ -402,6 +402,27 @@ Plans:
 
 ---
 
+## Phase 11.3: Config Schema Consistency Fix
+
+**Goal:** Fix schema inconsistency in `task_routing` config entries where `impl`, `code-review`, and `judgment` use object format while routing/logging code expects array format. Align schema so `model_chain` is logged correctly.
+
+**Context:** Found during PR #1 code review by Codex. The `task_routing.impl` entry changed from array to object, causing `model_chain` to be logged as object instead of array format.
+
+**Requirements**: SCHEMA-01, SCHEMA-02, SCHEMA-03
+**Depends on:** Phase 11.2
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 11.3-01-PLAN.md — Normalize config schema, create _get_model_chain helper, update ai-delegate callers
+
+**Key Files**:
+- `.planning/config.json` (UPDATE)
+- `~/dev/.meta/bin/lib/routing.sh` (UPDATE)
+- `~/dev/.meta/bin/ai-delegate` (UPDATE)
+
+---
+
 ## Phase 12: GSD to Zarchon Migration
 
 **Goal:** Convert existing GSD projects to zarchon projects, preserving work product (.planning/, ROADMAP.md, PLAN.md, SUMMARY.md, etc.) while migrating to native Archon workflow execution with zsd-* naming.
@@ -426,19 +447,6 @@ Plans:
 ---
 
 ## Backlog
-
-### Phase 11.3: Config Schema Consistency Fix (INSERTED)
-
-**Goal:** Fix schema inconsistency in `task_routing` config entries where `impl`, `code-review`, and `judgment` use object format while routing/logging code expects array format. Align schema so `model_chain` is logged correctly.
-
-**Context:** Found during PR #1 code review by Codex. The `task_routing.impl` entry changed from array to object, causing `model_chain` to be logged as object instead of array format.
-
-**Requirements**: TBD
-**Depends on:** Phase 11.2
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 11.3 to break down)
 
 ### Phase 999.1: Parallel Session Orchestration (BACKLOG)
 
