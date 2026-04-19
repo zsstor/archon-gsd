@@ -430,11 +430,11 @@ Plans:
 **Requirements**: D-01, D-03, D-04, D-06, D-07, D-08, D-09
 **Depends on:** Phase 11.1
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 12-01-PLAN.md — Rename 18 workflow files gsd-* to zsd-*, update internal refs, add version field, update docs
-- [ ] 12-02-PLAN.md — Create migration detection utility (is_zarchon_migrated, is_gsd_project functions)
+- [x] 12-01-PLAN.md — Rename 18 workflow files gsd-* to zsd-*, update internal refs, add version field, update docs
+- [x] 12-02-PLAN.md — Create migration detection utility (is_zarchon_migrated, is_gsd_project functions)
 
 **Key Files**:
 - `.archon/workflows/zsd-*.yaml` (RENAME from gsd-*.yaml)
