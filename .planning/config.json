@@ -310,5 +310,6 @@
     "default_backoff_max": 300,
     "parse_model": "glm-5.1:cloud",
     "state_dir": "/tmp/quota-state"
-  }
+  },
+  "zarchon_version": "1.0"
 }
