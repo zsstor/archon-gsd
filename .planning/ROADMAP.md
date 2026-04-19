@@ -448,3 +448,25 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.3: TDD-First Visual Regression Testing (BACKLOG)
+
+**Goal:** Establish TDD as the default workflow for all work including UI. Build toward integration with an upcoming screenshot-based user agent plugin that validates click-depth, reachability, UI drift, dead-ends, and role-based GUI access. Create a robust red-green-monitor feedback loop where tests start red, implementation drives toward green, and regression suite catches subsequent issues.
+
+**Key Features:**
+- TDD as default workflow — tests written before implementation for all work
+- Screenshot agent integration (DOM-independent visual validation)
+- Click-depth and reachability validation
+- UI drift detection between versions
+- Dead-end detection (unreachable states, broken flows)
+- Role-based GUI access validation
+- Red → Green → Monitor lifecycle enforcement
+- Regression testing that persists across builds
+
+**Integration Point:** Upcoming screenshot-based user agent plugin that ignores DOM and uses visual screenshots for validation, enabling implementation-agnostic UI testing.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
