@@ -498,10 +498,10 @@ Plans:
 **Requirements**: PR2-F1, PR2-F2
 **Depends on:** Phase 12
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 12.1-01-PLAN.md — Fix config.json review routing and migration.sh detection order
+- [x] 12.1-01-PLAN.md — Fix config.json review routing and migration.sh detection order
 
 **Findings to Fix:**
 
